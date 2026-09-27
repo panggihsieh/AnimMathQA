@@ -127,7 +127,7 @@
     resultEl.textContent = "輸入分數後按「開始動畫」。";
   });
 
-  async function playLadder(steps, { markFinal = true } = {}) {
+  async function playLadder(steps, { markFinal = true, lastClasses = null } = {}) {
     const token = ++animToken;
     ladderEl.innerHTML = "";
 
@@ -142,9 +142,12 @@
       pair.className = "pair" + (i < steps.length - 1 ? " has-bracket" : "");
       const [left, right] = step.pair;
       const isLast = i === steps.length - 1;
+      const tone = isLast && lastClasses
+        ? lastClasses
+        : (markFinal && isLast ? ["final", "final"] : ["", ""]);
       pair.innerHTML = `
-        <span class="n${markFinal && isLast ? " final" : ""}">${left}</span>
-        <span class="n${markFinal && isLast ? " final" : ""}">${right}</span>
+        <span class="n${tone[0] ? ` ${tone[0]}` : ""}">${left}</span>
+        <span class="n${tone[1] ? ` ${tone[1]}` : ""}">${right}</span>
       `;
 
       ladderEl.append(factor, pair);
@@ -179,9 +182,9 @@
     return Object.assign(document.createElement("span"), { className: "op", textContent: "=" });
   }
 
-  function factorMark(text) {
+  function factorMark(text, className = "div") {
     const mark = document.createElement("span");
-    mark.className = "div";
+    mark.className = className;
     mark.textContent = text;
     return mark;
   }
@@ -241,8 +244,8 @@
   async function playCommonWork(an, ad, bn, bd, mA, mB, common, token) {
     if (token !== animToken) return;
     const specs = [
-      { n: an, d: ad, m: mA },
-      { n: bn, d: bd, m: mB },
+      { n: an, d: ad, m: mA, tone: "mul-a" },
+      { n: bn, d: bd, m: mB, tone: "mul-b" },
     ];
     const lines = specs.map((item) => {
       const row = document.createElement("div");
@@ -252,8 +255,8 @@
         : [
             [equalsSign()],
             [stackedFraction(
-              [plain(String(item.n)), factorMark(`×${item.m}`)],
-              [plain(String(item.d)), factorMark(`×${item.m}`)],
+              [plain(String(item.n)), factorMark(`×${item.m}`, item.tone)],
+              [plain(String(item.d)), factorMark(`×${item.m}`, item.tone)],
               "mid",
             )],
             [equalsSign(), stackedFraction([plain(String(item.n * item.m))], [plain(String(common))], "final")],
@@ -329,7 +332,7 @@
     resultEl.hidden = true;
     resultEl.textContent = "";
     clearWorks();
-    const token = await playLadder(steps, { markFinal: true });
+    const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"] });
     if (token == null) return;
     await playCommonWork(an, ad, bn, bd, mA, mB, common, token);
   });
