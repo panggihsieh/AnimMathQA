@@ -26,37 +26,44 @@
 
       <form id="form" class="form" autocomplete="off">
         <div class="inputs" id="inputs-reduce">
-          <label>
-            <span>分數</span>
-            <span class="frac-input">
-              <input id="num" type="number" min="1" max="999" value="24" required />
-              <span class="bar" aria-hidden="true"></span>
-              <input id="den" type="number" min="1" max="999" value="42" required />
-            </span>
-          </label>
+          <div class="work-row">
+            <label>
+              <span>分數</span>
+              <span class="frac-input">
+                <input id="num" type="number" min="1" max="999" value="24" required />
+                <span class="bar" aria-hidden="true"></span>
+                <input id="den" type="number" min="1" max="999" value="42" required />
+              </span>
+            </label>
+            <div id="reduce-work" class="reduce-work" hidden aria-live="polite"></div>
+          </div>
         </div>
 
         <div class="inputs is-hidden" id="inputs-common">
-          <label>
-            <span>分數 A</span>
-            <span class="frac-input">
-              <input id="a-num" type="number" min="1" max="999" value="1" />
-              <span class="bar" aria-hidden="true"></span>
-              <input id="a-den" type="number" min="1" max="999" value="6" />
-            </span>
-          </label>
-          <label>
-            <span>分數 B</span>
-            <span class="frac-input">
-              <input id="b-num" type="number" min="1" max="999" value="1" />
-              <span class="bar" aria-hidden="true"></span>
-              <input id="b-den" type="number" min="1" max="999" value="4" />
-            </span>
-          </label>
+          <div class="work-row">
+            <label>
+              <span>分數 A</span>
+              <span class="frac-input">
+                <input id="a-num" type="number" min="1" max="999" value="1" />
+                <span class="bar" aria-hidden="true"></span>
+                <input id="a-den" type="number" min="1" max="999" value="6" />
+              </span>
+            </label>
+            <label>
+              <span>分數 B</span>
+              <span class="frac-input">
+                <input id="b-num" type="number" min="1" max="999" value="1" />
+                <span class="bar" aria-hidden="true"></span>
+                <input id="b-den" type="number" min="1" max="999" value="4" />
+              </span>
+            </label>
+            <div id="common-work" class="common-work" hidden aria-live="polite"></div>
+          </div>
         </div>
 
         <div class="actions">
           <button type="submit" class="primary">開始動畫</button>
+          <button type="button" class="ghost" id="btn-random">隨機示範</button>
           <button type="button" class="ghost" id="btn-reset">重設</button>
         </div>
       </form>
