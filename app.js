@@ -73,6 +73,28 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  const speedInput = $("#anim-seconds");
+  const speedLabel = $("#anim-seconds-label");
+
+  function animationSeconds() {
+    const n = Number(speedInput.value);
+    if (n < 1) return 1;
+    if (n > 60) return 60;
+    return n || 3;
+  }
+
+  /** 把整段動畫均分到每個出現步驟，總長等於拉桿的秒數 */
+  function paceFor(beats) {
+    const ms = (animationSeconds() * 1000) / Math.max(1, beats);
+    const fade = Math.min(350, ms * 0.45);
+    document.documentElement.style.setProperty("--anim-fade", `${fade}ms`);
+    return ms;
+  }
+
+  speedInput.addEventListener("input", () => {
+    speedLabel.textContent = String(animationSeconds());
+  });
+
   function setMode(next) {
     mode = next;
     modeButtons.forEach((btn) => {
@@ -107,7 +129,11 @@
       $("#b-num").value = pair.bn;
       $("#b-den").value = pair.bd;
     }
-    form.requestSubmit();
+    animToken += 1;
+    ladderEl.innerHTML = "";
+    clearWorks();
+    resultEl.hidden = false;
+    resultEl.textContent = "輸入分數後按「開始動畫」。";
   });
 
   $("#btn-reset").addEventListener("click", () => {
@@ -127,7 +153,7 @@
     resultEl.textContent = "輸入分數後按「開始動畫」。";
   });
 
-  async function playLadder(steps, { markFinal = true, lastClasses = null } = {}) {
+  async function playLadder(steps, { markFinal = true, lastClasses = null, pace = 420 } = {}) {
     const token = ++animToken;
     ladderEl.innerHTML = "";
 
@@ -158,7 +184,7 @@
       if (token !== animToken) return null;
       node.pair.classList.add("is-in");
       if (node.hasFactor) node.factor.classList.add("is-in");
-      await sleep(420);
+      await sleep(pace);
     }
     return token;
   }
@@ -214,7 +240,7 @@
   }
 
   /** 短除法結束後，在輸入分數右側逐步寫出同除與最簡分數 */
-  async function playReduceWork(num, den, g, token) {
+  async function playReduceWork(num, den, g, token, pace) {
     if (g <= 1 || token !== animToken) return;
     const sn = num / g;
     const sd = den / g;
@@ -233,15 +259,15 @@
     for (const group of groups) {
       if (token !== animToken) return;
       reduceWork.append(...group);
-      await sleep(30);
+      await sleep(16);
       if (token !== animToken) return;
       group.forEach((node) => node.classList.add("is-in"));
-      await sleep(560);
+      await sleep(Math.max(0, pace - 16));
     }
   }
 
   /** 短除法結束後，在兩個分數右側逐步寫出同乘與通分結果 */
-  async function playCommonWork(an, ad, bn, bd, mA, mB, common, token) {
+  async function playCommonWork(an, ad, bn, bd, mA, mB, common, token, pace) {
     if (token !== animToken) return;
     const specs = [
       { n: an, d: ad, m: mA, tone: "mul-a" },
@@ -277,10 +303,10 @@
         line.row.append(...group);
         batch.push(...group);
       });
-      await sleep(30);
+      await sleep(16);
       if (token !== animToken) return;
       batch.forEach((node) => node.classList.add("is-in"));
-      await sleep(560);
+      await sleep(Math.max(0, pace - 16));
     }
   }
 
@@ -305,9 +331,11 @@
       resultEl.hidden = true;
       resultEl.textContent = "";
       clearWorks();
-      const token = await playLadder(steps);
+      const resultBeats = g > 1 ? 3 : 0;
+      const pace = paceFor(steps.length + resultBeats);
+      const token = await playLadder(steps, { pace });
       if (token == null) return;
-      await playReduceWork(num, den, g, token);
+      await playReduceWork(num, den, g, token, pace);
       return;
     }
 
@@ -332,9 +360,11 @@
     resultEl.hidden = true;
     resultEl.textContent = "";
     clearWorks();
-    const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"] });
+    const resultBeats = mA > 1 || mB > 1 ? 3 : 1;
+    const pace = paceFor(steps.length + resultBeats);
+    const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"], pace });
     if (token == null) return;
-    await playCommonWork(an, ad, bn, bd, mA, mB, common, token);
+    await playCommonWork(an, ad, bn, bd, mA, mB, common, token, pace);
   });
 
   setMode("reduce");
