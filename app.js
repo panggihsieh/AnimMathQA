@@ -218,10 +218,6 @@
     return steps;
   }
 
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   const SPEED_OPTIONS = [3, 12, 24, 47, 60];
   let speedSeconds = 3;
   const speedButtons = document.querySelectorAll(".speed-btn");
@@ -232,8 +228,23 @@
 
   let manual = false;
   let playing = false;
+  let stepDir = 1;
   const waits = new Set();
+  const shownBeats = [];
+  const future = [];
   const stepBtn = $("#btn-step");
+  const backBtn = $("#btn-step-back");
+
+  function paintBack() {
+    if (backBtn) backBtn.disabled = shownBeats.length === 0;
+  }
+
+  function clearTrail() {
+    shownBeats.length = 0;
+    future.length = 0;
+    stepDir = 1;
+    paintBack();
+  }
 
   function motionOff() {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -259,6 +270,7 @@
     animToken += 1;
     cancelWaits();
     playing = false;
+    clearTrail();
   }
 
   function beginPlay() {
@@ -269,7 +281,7 @@
   }
 
   function waitPace(ms, token) {
-    if (token !== animToken) return Promise.resolve(false);
+    if (token !== animToken) return Promise.resolve(0);
     return new Promise((resolve) => {
       let timer = 0;
       const finish = () => {
@@ -277,7 +289,9 @@
         finish.done = true;
         clearTimeout(timer);
         waits.delete(finish);
-        resolve(token === animToken);
+        const dir = token === animToken ? stepDir : 0;
+        stepDir = 1;
+        resolve(dir);
       };
       waits.add(finish);
       if (manual) return;
@@ -287,6 +301,53 @@
       }
       timer = window.setTimeout(finish, ms);
     });
+  }
+
+  function showBeat(beat) {
+    beat.apply();
+    shownBeats.push(beat);
+    paintBack();
+  }
+
+  function hideBeat() {
+    const beat = shownBeats.pop();
+    if (!beat) return;
+    beat.undo();
+    future.push(beat);
+    paintBack();
+  }
+
+  async function runBeats(beats, pace, token) {
+    if (motionOff() && !manual) {
+      beats.forEach(showBeat);
+      return token === animToken;
+    }
+    let i = 0;
+    while (token === animToken) {
+      if (stepDir < 0) {
+        stepDir = 1;
+        if (i > 0) {
+          hideBeat();
+          i -= 1;
+        }
+      } else if (i < beats.length) {
+        future.length = 0;
+        showBeat(beats[i]);
+        i += 1;
+      } else {
+        break;
+      }
+      const hold = i > 0 && beats[i - 1] ? (beats[i - 1].hold || 1) : 1;
+      const dir = await waitPace(pace * hold, token);
+      if (!dir) return false;
+      stepDir = dir;
+    }
+    return token === animToken;
+  }
+
+  function releaseWait() {
+    const finish = waits.values().next().value;
+    if (finish) finish();
   }
 
   function enableManual() {
@@ -335,12 +396,30 @@
   stepBtn.addEventListener("click", () => {
     enableManual();
     if (waits.size) {
-      waits.values().next().value();
+      stepDir = 1;
+      releaseWait();
+      return;
+    }
+    if (future.length) {
+      showBeat(future.pop());
       return;
     }
     if (playing) return;
     form.requestSubmit();
   });
+
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      if (!shownBeats.length) return;
+      enableManual();
+      if (waits.size) {
+        stepDir = -1;
+        releaseWait();
+        return;
+      }
+      hideBeat();
+    });
+  }
 
   function zhCount(n) {
     return `${n}分之`;
@@ -439,43 +518,44 @@
     return `塗色都停在一半。1 和 2 一起乘 ${cut}，還是一樣大。`;
   }
 
+  function classBeat(nodes) {
+    const list = nodes.filter(Boolean);
+    return {
+      apply() { list.forEach((el) => el.classList.add("is-in")); },
+      undo() { list.forEach((el) => el.classList.remove("is-in")); },
+    };
+  }
+
   async function playPicture() {
     const token = beginPlay();
     try {
     const view = renderPicture();
     const steps = [
-      () => view.topBar.classList.add("is-in"),
-      () => view.topShade.classList.add("is-in"),
-      () => view.topFrac.classList.add("is-in"),
-      () => view.line.classList.add("is-in"),
-      () => view.step.classList.add("is-in"),
-      () => view.bottomBar.classList.add("is-in"),
-      ...view.splits.map((group) => () => group.forEach((cell) => cell.classList.add("is-in"))),
-      () => view.bottomFrac.classList.add("is-in"),
-      () => view.eq.classList.add("is-in"),
+      classBeat([view.topBar]),
+      classBeat([view.topShade]),
+      classBeat([view.topFrac]),
+      classBeat([view.line]),
+      classBeat([view.step]),
+      classBeat([view.bottomBar]),
+      ...view.splits.map((group) => classBeat(group)),
+      classBeat([view.bottomFrac]),
+      classBeat([view.eq]),
+      {
+        apply() {
+          barsEl.removeAttribute("aria-hidden");
+          resultEl.hidden = false;
+          resultEl.textContent = pictureCaption();
+        },
+        undo() {
+          barsEl.setAttribute("aria-hidden", "true");
+          resultEl.textContent = "";
+        },
+      },
     ];
-    const finish = () => {
-      barsEl.removeAttribute("aria-hidden");
-      resultEl.hidden = false;
-      resultEl.textContent = pictureCaption();
-    };
-    if (motionOff() && !manual) {
-      steps.forEach((fn) => fn());
-      finish();
-      return;
-    }
-    const pace = paceFor(steps.length);
     barsEl.setAttribute("aria-hidden", "true");
     resultEl.hidden = false;
     resultEl.textContent = "";
-    if (!manual) await sleep(16);
-    for (const fn of steps) {
-      if (token !== animToken) return;
-      fn();
-      if (!(await waitPace(pace, token))) return;
-    }
-    if (token !== animToken) return;
-    finish();
+    await runBeats(steps, paceFor(steps.length), token);
     } finally {
       if (token === animToken) playing = false;
     }
@@ -559,17 +639,12 @@
     resultEl.textContent = "輸入分數後按「開始動畫」。";
   });
 
-  async function playLadder(steps, { markFinal = true, lastClasses = null, pace = 420 } = {}) {
-    const token = beginPlay();
+  function ladderBeats(steps, { markFinal = true, lastClasses = null } = {}) {
     ladderEl.innerHTML = "";
-
-    const nodes = [];
-    for (let i = 0; i < steps.length; i += 1) {
-      const step = steps[i];
+    const nodes = steps.map((step, i) => {
       const factor = document.createElement("div");
       factor.className = "factor";
       factor.textContent = step.left == null ? "" : String(step.left);
-
       const pair = document.createElement("div");
       pair.className = "pair" + (i < steps.length - 1 ? " has-bracket" : "");
       const [left, right] = step.pair;
@@ -581,18 +656,19 @@
         <span class="n${tone[0] ? ` ${tone[0]}` : ""}">${left}</span>
         <span class="n${tone[1] ? ` ${tone[1]}` : ""}">${right}</span>
       `;
-
       ladderEl.append(factor, pair);
-      nodes.push({ factor, pair, hasFactor: step.left != null });
-    }
-
-    for (const node of nodes) {
-      if (token !== animToken) return null;
-      node.pair.classList.add("is-in");
-      if (node.hasFactor) node.factor.classList.add("is-in");
-      if (!(await waitPace(pace, token))) return null;
-    }
-    return token;
+      return { factor, pair, hasFactor: step.left != null };
+    });
+    return nodes.map((node) => ({
+      apply() {
+        node.pair.classList.add("is-in");
+        if (node.hasFactor) node.factor.classList.add("is-in");
+      },
+      undo() {
+        node.pair.classList.remove("is-in");
+        if (node.hasFactor) node.factor.classList.remove("is-in");
+      },
+    }));
   }
 
   function clearReduceWork() {
@@ -646,13 +722,10 @@
   }
 
   /** 短除法結束後，在輸入分數右側逐步寫出同除與最簡分數 */
-  async function playReduceWork(num, den, g, token, pace) {
-    if (g <= 1 || token !== animToken) return;
+  function reduceBeats(num, den, g) {
+    if (g <= 1) return [];
     const sn = num / g;
     const sd = den / g;
-    reduceWork.hidden = false;
-    reduceWork.replaceChildren();
-
     const groups = [
       [Object.assign(document.createElement("span"), { className: "op", textContent: "=" })],
       [stackedFraction([plain(String(num)), divisorMark(g)], [plain(String(den)), divisorMark(g)], "mid")],
@@ -661,15 +734,17 @@
         stackedFraction([plain(String(sn))], [plain(String(sd))], "final"),
       ],
     ];
-
-    for (const group of groups) {
-      if (token !== animToken) return;
-      reduceWork.append(...group);
-      if (!manual) await sleep(16);
-      if (token !== animToken) return;
-      group.forEach((node) => node.classList.add("is-in"));
-      if (!(await waitPace(Math.max(0, pace - 16), token))) return;
-    }
+    return groups.map((group) => ({
+      apply() {
+        reduceWork.hidden = false;
+        reduceWork.append(...group);
+        group.forEach((node) => node.classList.add("is-in"));
+      },
+      undo() {
+        group.forEach((node) => node.remove());
+        if (!reduceWork.childNodes.length) reduceWork.hidden = true;
+      },
+    }));
   }
 
   /** 短除法的除數與最底列，依顏色乘成最小公倍數 */
@@ -713,8 +788,7 @@
   }
 
   /** 先寫出最小公倍數當公分母，再寫每個分數要同乘的數 */
-  async function playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace) {
-    if (token !== animToken) return;
+  function commonBeats(an, ad, bn, bd, mA, mB, common, steps) {
     const specs = [
       { n: an, d: ad, m: mA, tone: "mul-a" },
       { n: bn, d: bd, m: mB, tone: "mul-b" },
@@ -741,30 +815,42 @@
     const lcmExpr = lcmExpression(steps, common);
     lcmRow.append(lcmExpr);
 
-    commonWork.hidden = false;
-    commonWork.replaceChildren(lcmRow, ...lines.map((line) => line.row));
-
-    if (token !== animToken) return;
-    if (!manual) await sleep(16);
-    if (token !== animToken) return;
-    lcmExpr.classList.add("is-in");
-    if (!(await waitPace(Math.max(0, pace - 16), token))) return;
+    const beats = [{
+      apply() {
+        commonWork.hidden = false;
+        commonWork.append(lcmRow);
+        lcmExpr.classList.add("is-in");
+      },
+      undo() {
+        lcmExpr.classList.remove("is-in");
+        lcmRow.remove();
+        if (!commonWork.childNodes.length) commonWork.hidden = true;
+      },
+    }];
 
     const stepCount = Math.max(...lines.map((line) => line.groups.length));
     for (let i = 0; i < stepCount; i += 1) {
-      if (token !== animToken) return;
-      const batch = [];
-      lines.forEach((line) => {
-        const group = line.groups[i];
-        if (!group) return;
-        line.row.append(...group);
-        batch.push(...group);
+      beats.push({
+        apply() {
+          lines.forEach((line) => {
+            const group = line.groups[i];
+            if (!group) return;
+            if (!line.row.isConnected) commonWork.append(line.row);
+            line.row.append(...group);
+            group.forEach((node) => node.classList.add("is-in"));
+          });
+        },
+        undo() {
+          lines.forEach((line) => {
+            const group = line.groups[i];
+            if (!group) return;
+            group.forEach((node) => node.remove());
+            if (!line.row.childNodes.length) line.row.remove();
+          });
+        },
       });
-      if (!manual) await sleep(16);
-      if (token !== animToken) return;
-      batch.forEach((node) => node.classList.add("is-in"));
-      if (!(await waitPace(Math.max(0, pace - 16), token))) return;
     }
+    return beats;
   }
 
   form.addEventListener("submit", async (e) => {
@@ -787,17 +873,14 @@
 
       const steps = shortDivisionSteps(num, den);
       const g = gcd(num, den);
-
       stageLabel.textContent = "短除法求最大公因數（約分）";
       resultEl.hidden = true;
       resultEl.textContent = "";
       clearWorks();
-      const resultBeats = g > 1 ? 3 : 0;
-      const pace = paceFor(steps.length + resultBeats);
-      const token = await playLadder(steps, { pace });
-      if (token == null) return;
+      const token = beginPlay();
       try {
-        await playReduceWork(num, den, g, token, pace);
+        const beats = [...ladderBeats(steps), ...reduceBeats(num, den, g)];
+        await runBeats(beats, paceFor(beats.length), token);
       } finally {
         if (token === animToken) playing = false;
       }
@@ -825,12 +908,13 @@
     resultEl.hidden = true;
     resultEl.textContent = "";
     clearWorks();
-    const resultBeats = (mA > 1 || mB > 1 ? 3 : 1) + 1;
-    const pace = paceFor(steps.length + resultBeats);
-    const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"], pace });
-    if (token == null) return;
+    const token = beginPlay();
     try {
-      await playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace);
+      const beats = [
+        ...ladderBeats(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"] }),
+        ...commonBeats(an, ad, bn, bd, mA, mB, common, steps),
+      ];
+      await runBeats(beats, paceFor(beats.length), token);
     } finally {
       if (token === animToken) playing = false;
     }

@@ -106,10 +106,6 @@
     levelRange.textContent = twoNumbers() ? LEVELS[level].pair : LEVELS[level].one;
   }
 
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   function motionOff() {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
@@ -131,8 +127,23 @@
 
   let manual = false;
   let playing = false;
+  let stepDir = 1;
   const waits = new Set();
+  const shownBeats = [];
+  const future = [];
   const stepBtn = $("#btn-step");
+  const backBtn = $("#btn-step-back");
+
+  function paintBack() {
+    if (backBtn) backBtn.disabled = shownBeats.length === 0;
+  }
+
+  function clearTrail() {
+    shownBeats.length = 0;
+    future.length = 0;
+    stepDir = 1;
+    paintBack();
+  }
 
   function paintManual() {
     speedButtons.forEach((btn) => {
@@ -154,6 +165,7 @@
     animToken += 1;
     cancelWaits();
     playing = false;
+    clearTrail();
   }
 
   function beginPlay() {
@@ -164,7 +176,7 @@
   }
 
   function waitPace(ms, token) {
-    if (token !== animToken) return Promise.resolve(false);
+    if (token !== animToken) return Promise.resolve(0);
     return new Promise((resolve) => {
       let timer = 0;
       const finish = () => {
@@ -172,7 +184,9 @@
         finish.done = true;
         clearTimeout(timer);
         waits.delete(finish);
-        resolve(token === animToken);
+        const dir = token === animToken ? stepDir : 0;
+        stepDir = 1;
+        resolve(dir);
       };
       waits.add(finish);
       if (manual) return;
@@ -182,6 +196,53 @@
       }
       timer = window.setTimeout(finish, ms);
     });
+  }
+
+  function showBeat(beat) {
+    beat.apply();
+    shownBeats.push(beat);
+    paintBack();
+  }
+
+  function hideBeat() {
+    const beat = shownBeats.pop();
+    if (!beat) return;
+    beat.undo();
+    future.push(beat);
+    paintBack();
+  }
+
+  async function runBeats(beats, pace, token) {
+    if (motionOff() && !manual) {
+      beats.forEach(showBeat);
+      return token === animToken;
+    }
+    let i = 0;
+    while (token === animToken) {
+      if (stepDir < 0) {
+        stepDir = 1;
+        if (i > 0) {
+          hideBeat();
+          i -= 1;
+        }
+      } else if (i < beats.length) {
+        future.length = 0;
+        showBeat(beats[i]);
+        i += 1;
+      } else {
+        break;
+      }
+      const hold = i > 0 && beats[i - 1] ? (beats[i - 1].hold || 1) : 1;
+      const dir = await waitPace(pace * hold, token);
+      if (!dir) return false;
+      stepDir = dir;
+    }
+    return token === animToken;
+  }
+
+  function releaseWait() {
+    const finish = waits.values().next().value;
+    if (finish) finish();
   }
 
   function enableManual() {
@@ -278,12 +339,30 @@
   stepBtn.addEventListener("click", () => {
     enableManual();
     if (waits.size) {
-      waits.values().next().value();
+      stepDir = 1;
+      releaseWait();
+      return;
+    }
+    if (future.length) {
+      showBeat(future.pop());
       return;
     }
     if (playing) return;
     form.requestSubmit();
   });
+
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      if (!shownBeats.length) return;
+      enableManual();
+      if (waits.size) {
+        stepDir = -1;
+        releaseWait();
+        return;
+      }
+      hideBeat();
+    });
+  }
 
   function fillRandom() {
     const band = LEVELS[level];
@@ -410,19 +489,31 @@
     beat.show.forEach((el) => el.classList.add("is-in"));
   }
 
-  async function reveal(groups, pace, token) {
-    const beats = groups.map(beatOf);
-    if (motionOff() && !manual) {
-      beats.forEach(applyBeat);
-      return token === animToken;
-    }
-    if (!manual) await sleep(16);
-    for (const beat of beats) {
-      if (token !== animToken) return false;
-      applyBeat(beat);
-      if (!(await waitPace(pace * beat.hold, token))) return false;
-    }
-    return token === animToken;
+  function undoableBeat(item) {
+    const beat = beatOf(item);
+    let prev = [];
+    return {
+      hold: beat.hold,
+      apply() {
+        prev = beat.paint.map(([el]) => [el, el ? el.style.getPropertyValue("--step") : ""]);
+        applyBeat(beat);
+      },
+      undo() {
+        beat.show.forEach((el) => el && el.classList.remove("is-in"));
+        prev.forEach(([el, value]) => {
+          if (!el) return;
+          if (value) el.style.setProperty("--step", value);
+          else el.style.removeProperty("--step");
+        });
+      },
+    };
+  }
+
+  function textBeat(text) {
+    return {
+      apply() { resultEl.textContent = text; },
+      undo() { resultEl.textContent = ""; },
+    };
   }
 
   function pairBits(k, n) {
@@ -728,7 +819,7 @@
     return { beats, least, second, squares };
   }
 
-  async function playLadder(steps, pace, token) {
+  function ladderBeats(steps) {
     ladderEl.replaceChildren();
     const nodes = steps.map((step, i) => {
       const factor = document.createElement("div");
@@ -747,20 +838,16 @@
       ladderEl.append(factor, pair);
       return { factor, pair, hasFactor: step.left != null };
     });
-    const show = (node) => {
-      node.pair.classList.add("is-in");
-      if (node.hasFactor) node.factor.classList.add("is-in");
-    };
-    if (motionOff() && !manual) {
-      nodes.forEach(show);
-      return token === animToken;
-    }
-    for (const node of nodes) {
-      if (token !== animToken) return false;
-      show(node);
-      if (!(await waitPace(pace, token))) return false;
-    }
-    return token === animToken;
+    return nodes.map((node) => ({
+      apply() {
+        node.pair.classList.add("is-in");
+        if (node.hasFactor) node.factor.classList.add("is-in");
+      },
+      undo() {
+        node.pair.classList.remove("is-in");
+        if (node.hasFactor) node.factor.classList.remove("is-in");
+      },
+    }));
   }
 
   function lcmExpression(steps, common) {
@@ -811,11 +898,10 @@
         return;
       }
       listEl.hidden = false;
-      const rows = renderTimes(n);
-      const ok = await reveal(rows, paceFor(rows.length), token);
-      if (!ok) return;
-      listEl.removeAttribute("aria-hidden");
-      resultEl.textContent = `${n} 的倍數是 1×${n}、2×${n}、3×${n}……，可以一直寫下去。`;
+      const steps = renderTimes(n).map(undoableBeat);
+      steps.push(textBeat(`${n} 的倍數是 1×${n}、2×${n}、3×${n}……，可以一直寫下去。`));
+      await runBeats(steps, paceFor(steps.length), token);
+      if (token === animToken) listEl.removeAttribute("aria-hidden");
       return;
     }
 
@@ -829,36 +915,31 @@
     if (mode === "common") {
       commonBoard.hidden = false;
       const { beats, least, second, squares } = renderCommon(a, b);
-      const ok = await reveal(beats, paceFor(beats.length), token);
-      if (!ok) return;
-      commonBoard.removeAttribute("aria-hidden");
-      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。第一次相遇是 ${least}，再次相遇是 ${second}。${squares.sentence}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
+      const steps = beats.map(undoableBeat);
+      steps.push(textBeat(`${a} 和 ${b} 的公倍數有 ${least}、${second}……。第一次相遇是 ${least}，再次相遇是 ${second}。${squares.sentence}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`));
+      await runBeats(steps, paceFor(steps.length), token);
+      if (token === animToken) commonBoard.removeAttribute("aria-hidden");
       return;
     }
 
-    const steps = shortDivisionSteps(a, b);
+    const division = shortDivisionSteps(a, b);
     const common = lcm(a, b);
     lcmWrap.hidden = false;
-    const ok = await playLadder(steps, paceFor(steps.length + 1), token);
-    if (!ok) return;
+    const steps = ladderBeats(division);
     const wrap = document.createElement("span");
     wrap.className = "prime-eq";
     wrap.append(
-      lcmExpression(steps, common),
+      lcmExpression(division, common),
       document.createTextNode(`。${a} 和 ${b} 的最小公倍數是 ${common}，通分的公分母就是這個數。`),
     );
-    resultEl.replaceChildren(wrap);
-    if (motionOff() && !manual) {
-      wrap.classList.add("is-in");
-      return;
-    }
-    if (manual) {
-      if (!(await waitPace(280, token))) return;
-    } else {
-      await sleep(16);
-      if (token !== animToken) return;
-    }
-    wrap.classList.add("is-in");
+    steps.push({
+      apply() {
+        resultEl.replaceChildren(wrap);
+        wrap.classList.add("is-in");
+      },
+      undo() { wrap.remove(); },
+    });
+    await runBeats(steps, paceFor(steps.length), token);
     } finally {
       if (token === animToken) playing = false;
     }
