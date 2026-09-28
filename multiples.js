@@ -129,17 +129,17 @@
   let playing = false;
   let stepDir = 1;
   const waits = new Set();
-  const shownBeats = [];
+  const shown = [];
   const future = [];
   const stepBtn = $("#btn-step");
   const backBtn = $("#btn-step-back");
 
   function paintBack() {
-    if (backBtn) backBtn.disabled = shownBeats.length === 0;
+    if (backBtn) backBtn.disabled = shown.length === 0;
   }
 
   function clearTrail() {
-    shownBeats.length = 0;
+    shown.length = 0;
     future.length = 0;
     stepDir = 1;
     paintBack();
@@ -200,12 +200,12 @@
 
   function showBeat(beat) {
     beat.apply();
-    shownBeats.push(beat);
+    shown.push(beat);
     paintBack();
   }
 
   function hideBeat() {
-    const beat = shownBeats.pop();
+    const beat = shown.pop();
     if (!beat) return;
     beat.undo();
     future.push(beat);
@@ -353,7 +353,7 @@
 
   if (backBtn) {
     backBtn.addEventListener("click", () => {
-      if (!shownBeats.length) return;
+      if (!shown.length) return;
       enableManual();
       if (waits.size) {
         stepDir = -1;
@@ -703,6 +703,7 @@
       diagram.push({ show: [meet], paint });
     });
     diagram.push([more]);
+    diagram.unshift([chart]);
     diagram.unshift([view]);
     beats.push(...diagram);
   }
@@ -857,7 +858,7 @@
     });
     const last = steps[steps.length - 1].pair;
     factors.push({ n: last[0], tone: "mul-b" }, { n: last[1], tone: "mul-a" });
-    const shown = factors.filter((factor) => factor.n > 1);
+    const parts = factors.filter((factor) => factor.n > 1);
 
     const expr = document.createElement("span");
     expr.className = "lcm-expr";
@@ -865,14 +866,14 @@
     name.textContent = "LCM";
     expr.append(name, document.createTextNode("="));
 
-    shown.forEach((factor, index) => {
+    parts.forEach((factor, index) => {
       if (index > 0) expr.append(document.createTextNode("×"));
       const num = document.createElement("span");
       num.className = factor.tone;
       num.textContent = String(factor.n);
       expr.append(num);
     });
-    if (shown.length === 0) {
+    if (parts.length === 0) {
       const only = document.createElement("span");
       only.className = "lcm-value";
       only.textContent = String(common);

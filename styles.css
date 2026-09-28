@@ -1173,6 +1173,12 @@ html.is-fullscreen .app {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.35rem 0.55rem;
   align-items: end;
+  opacity: 0;
+}
+
+.period.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
 }
 
 .period-names {
@@ -1671,6 +1677,7 @@ html.is-fullscreen .app {
   .share,
   .period-view,
   .square-view,
+  .period,
   .period-tick,
   .period-meet,
   .period-gap,
