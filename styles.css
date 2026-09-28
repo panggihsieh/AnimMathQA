@@ -607,13 +607,18 @@ label {
   background: var(--leaf-deep);
 }
 
+.step-dock:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 html.is-fullscreen .app {
   width: min(960px, calc(100% - 3rem));
 }
 
 @media (max-width: 960px) {
   .unit-nav {
-    padding-right: 12.5rem;
+    padding-right: 18rem;
   }
 }
 

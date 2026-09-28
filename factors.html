@@ -22,9 +22,9 @@
     <section class="panel" aria-label="操作區">
       <div class="modes" role="tablist" aria-label="模式">
         <button type="button" class="mode is-active" data-mode="factors" role="tab" aria-selected="true">因數</button>
-        <button type="button" class="mode" data-mode="common" role="tab" aria-selected="false">公因數</button>
         <button type="button" class="mode" data-mode="pairs" role="tab" aria-selected="false">因數配對</button>
         <button type="button" class="mode" data-mode="prime" role="tab" aria-selected="false">質因數分解</button>
+        <button type="button" class="mode" data-mode="common" role="tab" aria-selected="false">公因數畫圖</button>
       </div>
 
       <form id="form" class="form" autocomplete="off">
@@ -89,6 +89,7 @@
   </main>
   <div class="teach-dock">
     <button type="button" class="screen-btn" id="btn-screen" aria-pressed="false">全螢幕</button>
+    <button type="button" class="step-dock" id="btn-step-back" disabled>上一步</button>
     <button type="button" class="step-dock" id="btn-step-dock">下一步</button>
   </div>
   <script src="menu.js"></script>

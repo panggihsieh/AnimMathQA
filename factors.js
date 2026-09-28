@@ -148,8 +148,23 @@
 
   let manual = false;
   let playing = false;
+  let stepDir = 1;
   const waits = new Set();
+  const shown = [];
+  const future = [];
   const stepBtn = $("#btn-step");
+  const backBtn = $("#btn-step-back");
+
+  function paintBack() {
+    if (backBtn) backBtn.disabled = shown.length === 0;
+  }
+
+  function clearTrail() {
+    shown.length = 0;
+    future.length = 0;
+    stepDir = 1;
+    paintBack();
+  }
 
   function paintManual() {
     speedButtons.forEach((btn) => {
@@ -171,6 +186,7 @@
     animToken += 1;
     cancelWaits();
     playing = false;
+    clearTrail();
   }
 
   function beginPlay() {
@@ -181,7 +197,7 @@
   }
 
   function waitPace(ms, token) {
-    if (token !== animToken) return Promise.resolve(false);
+    if (token !== animToken) return Promise.resolve(0);
     return new Promise((resolve) => {
       let timer = 0;
       const finish = () => {
@@ -189,7 +205,9 @@
         finish.done = true;
         clearTimeout(timer);
         waits.delete(finish);
-        resolve(token === animToken);
+        const dir = token === animToken ? stepDir : 0;
+        stepDir = 1;
+        resolve(dir);
       };
       waits.add(finish);
       if (manual) return;
@@ -199,6 +217,53 @@
       }
       timer = window.setTimeout(finish, ms);
     });
+  }
+
+  function showBeat(beat) {
+    beat.apply();
+    shown.push(beat);
+    paintBack();
+  }
+
+  function hideBeat() {
+    const beat = shown.pop();
+    if (!beat) return;
+    beat.undo();
+    future.push(beat);
+    paintBack();
+  }
+
+  async function runBeats(beats, pace, token) {
+    if (motionOff() && !manual) {
+      beats.forEach(showBeat);
+      return token === animToken;
+    }
+    let i = 0;
+    while (token === animToken) {
+      if (stepDir < 0) {
+        stepDir = 1;
+        if (i > 0) {
+          hideBeat();
+          i -= 1;
+        }
+      } else if (i < beats.length) {
+        future.length = 0;
+        showBeat(beats[i]);
+        i += 1;
+      } else {
+        break;
+      }
+      const hold = i > 0 && beats[i - 1] ? (beats[i - 1].hold || 1) : 1;
+      const dir = await waitPace(pace * hold, token);
+      if (!dir) return false;
+      stepDir = dir;
+    }
+    return token === animToken;
+  }
+
+  function releaseWait() {
+    const finish = waits.values().next().value;
+    if (finish) finish();
   }
 
   function enableManual() {
@@ -261,12 +326,30 @@
   stepBtn.addEventListener("click", () => {
     enableManual();
     if (waits.size) {
-      waits.values().next().value();
+      stepDir = 1;
+      releaseWait();
+      return;
+    }
+    if (future.length) {
+      showBeat(future.pop());
       return;
     }
     if (playing) return;
     form.requestSubmit();
   });
+
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      if (!shown.length) return;
+      enableManual();
+      if (waits.size) {
+        stepDir = -1;
+        releaseWait();
+        return;
+      }
+      hideBeat();
+    });
+  }
 
   function pickWeighted(items, weight) {
     const weights = items.map((item) => weight(item));
@@ -479,21 +562,37 @@
   }
 
   async function reveal(groups, pace, token) {
-    const beats = groups.map(beatOf);
-    if (motionOff() && !manual) {
-      beats.forEach(applyBeat);
-      return token === animToken;
-    }
-    if (!manual) await sleep(16);
-    for (const beat of beats) {
-      if (token !== animToken) return false;
-      applyBeat(beat);
-      if (!(await waitPace(pace * beat.hold, token))) return false;
-    }
-    return token === animToken;
+    return runBeats(groups.map(undoableBeat), pace, token);
   }
 
-  async function playLadder(steps, pace, token) {
+  function undoableBeat(item) {
+    const beat = beatOf(item);
+    let prev = [];
+    return {
+      hold: beat.hold,
+      apply() {
+        prev = beat.paint.map(([el]) => [el, el ? el.style.getPropertyValue("--step") : ""]);
+        applyBeat(beat);
+      },
+      undo() {
+        beat.show.forEach((el) => el && el.classList.remove("is-in"));
+        prev.forEach(([el, value]) => {
+          if (!el) return;
+          if (value) el.style.setProperty("--step", value);
+          else el.style.removeProperty("--step");
+        });
+      },
+    };
+  }
+
+  function textBeat(text) {
+    return {
+      apply() { resultEl.textContent = text; },
+      undo() { resultEl.textContent = ""; },
+    };
+  }
+
+  function ladderBeats(steps) {
     ladderEl.replaceChildren();
     const nodes = steps.map((step, i) => {
       const factor = document.createElement("div");
@@ -512,21 +611,16 @@
       if (index > 0) paintStep(node.num, index - 1);
       if (node.hasFactor) paintStep(node.factor, index);
     });
-
-    const show = (node) => {
-      node.pair.classList.add("is-in");
-      if (node.hasFactor) node.factor.classList.add("is-in");
-    };
-    if (motionOff() && !manual) {
-      nodes.forEach(show);
-      return token === animToken;
-    }
-    for (const node of nodes) {
-      if (token !== animToken) return false;
-      show(node);
-      if (!(await waitPace(pace, token))) return false;
-    }
-    return token === animToken;
+    return nodes.map((node) => ({
+      apply() {
+        node.pair.classList.add("is-in");
+        if (node.hasFactor) node.factor.classList.add("is-in");
+      },
+      undo() {
+        node.pair.classList.remove("is-in");
+        if (node.hasFactor) node.factor.classList.remove("is-in");
+      },
+    }));
   }
 
   function factorList(n) {
@@ -760,9 +854,9 @@
       }
       commonBoard.hidden = false;
       const { beats, commons } = renderCommon(a, b);
-      const ok = await reveal(beats, paceFor(beats.length), token);
-      if (!ok) return;
-      resultEl.textContent = commonSentence(a, b, commons);
+      const steps = beats.map(undoableBeat);
+      steps.push(textBeat(commonSentence(a, b, commons)));
+      await runBeats(steps, paceFor(steps.length), token);
       return;
     }
 
@@ -774,49 +868,38 @@
 
     if (mode === "factors") {
       boardEl.hidden = false;
-      const beats = renderFactors(n);
-      const ok = await reveal(beats, paceFor(beats.length), token);
-      if (!ok) return;
-      resultEl.textContent = `${n} 的因數：${listText(n)}。`;
+      const steps = renderFactors(n).map(undoableBeat);
+      steps.push(textBeat(`${n} 的因數：${listText(n)}。`));
+      await runBeats(steps, paceFor(steps.length), token);
       return;
     }
 
     if (mode === "pairs") {
       pairEl.hidden = false;
-      const rows = renderPairs(n);
-      const ok = await reveal(rows, paceFor(rows.length), token);
-      if (!ok) return;
       const text = factorPairs(n).map(([a, b]) => `${a}×${b}`).join("、");
-      resultEl.textContent = `${text}，相乘都是 ${n}。`;
+      const steps = renderPairs(n).map(undoableBeat);
+      steps.push(textBeat(`${text}，相乘都是 ${n}。`));
+      await runBeats(steps, paceFor(steps.length), token);
       return;
     }
 
     primeWrap.hidden = false;
-    const { primes, steps } = divisionSteps(n);
+    const { primes, steps: division } = divisionSteps(n);
     const showEq = n > 1 && !isPrime(n);
-    const ok = await playLadder(steps, paceFor(steps.length + (showEq ? 1 : 0)), token);
-    if (!ok) return;
-    if (n === 1) {
-      resultEl.textContent = "1 的因數只有 1，它不是質數。";
-      return;
+    const steps = ladderBeats(division);
+    if (n === 1) steps.push(textBeat("1 的因數只有 1，它不是質數。"));
+    else if (!showEq) steps.push(textBeat(`${n} 是質數，不能再拆。`));
+    else {
+      const expr = equation(n, primes);
+      steps.push({
+        apply() {
+          resultEl.append(expr);
+          expr.classList.add("is-in");
+        },
+        undo() { expr.remove(); },
+      });
     }
-    if (!showEq) {
-      resultEl.textContent = `${n} 是質數，不能再拆。`;
-      return;
-    }
-    const expr = equation(n, primes);
-    resultEl.append(expr);
-    if (motionOff() && !manual) {
-      expr.classList.add("is-in");
-      return;
-    }
-    if (manual) {
-      if (!(await waitPace(280, token))) return;
-    } else {
-      await sleep(16);
-      if (token !== animToken) return;
-    }
-    expr.classList.add("is-in");
+    await runBeats(steps, paceFor(steps.length), token);
     } finally {
       if (token === animToken) playing = false;
     }
