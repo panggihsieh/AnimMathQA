@@ -421,6 +421,186 @@
     return { line, chips, els };
   }
 
+  function multiplesUntil(n, end) {
+    const list = [];
+    for (let k = 1; k * n <= end + 1e-9; k += 1) list.push(k * n);
+    return list;
+  }
+
+  function placeTick(lane, at, label) {
+    const tick = document.createElement("span");
+    tick.className = "period-tick";
+    tick.style.setProperty("--at", String(at));
+    if (label) {
+      const text = document.createElement("span");
+      text.textContent = label;
+      tick.append(text);
+    }
+    lane.append(tick);
+    return tick;
+  }
+
+  function placeMeet(field, at) {
+    const meet = document.createElement("span");
+    meet.className = "period-meet";
+    meet.style.setProperty("--at", String(at));
+    const text = document.createElement("span");
+    text.textContent = "";
+    meet.append(text);
+    field.append(meet);
+    return { meet, text };
+  }
+
+  /** 兩條時間軸對到同一個時刻。刻度太多時，只留開頭和兩次對齊。 */
+  function appendPeriod(a, b, least, second, beats) {
+    const view = document.createElement("div");
+    view.className = "period-view";
+    const title = document.createElement("p");
+    title.className = "figure-label";
+    title.textContent = "時間軸";
+    const chart = document.createElement("div");
+    chart.className = "period";
+    chart.setAttribute("role", "img");
+    chart.setAttribute("aria-label", `${a} 和 ${b} 的時間軸在 ${least}、${second} 對齊`);
+
+    const names = document.createElement("div");
+    names.className = "period-names";
+    [a, b].forEach((n) => {
+      const name = document.createElement("span");
+      name.textContent = String(n);
+      names.append(name);
+    });
+
+    const field = document.createElement("div");
+    field.className = "period-field";
+    const lanesWrap = document.createElement("div");
+    lanesWrap.className = "period-lanes";
+    const laneA = document.createElement("div");
+    const laneB = document.createElement("div");
+    laneA.className = "period-lane";
+    laneB.className = "period-lane";
+    lanesWrap.append(laneA, laneB);
+    field.append(lanesWrap);
+
+    const more = document.createElement("span");
+    more.className = "period-more";
+    more.textContent = "…";
+    chart.append(names, field, more);
+    view.append(title, chart);
+    commonBoard.append(view);
+
+    const diagram = [];
+    const marks = new Map();
+    const remember = (value, el) => {
+      if (!marks.has(value)) marks.set(value, []);
+      marks.get(value).push(el);
+    };
+    const many = Math.max(second / a, second / b) > 8;
+
+    if (!many) {
+      [[a, laneA], [b, laneB]].forEach(([n, lane]) => {
+        const ticks = [];
+        multiplesUntil(n, second).forEach((value) => {
+          const meet = value === least || value === second;
+          const tick = placeTick(lane, (value / second) * 0.92, meet ? "" : String(value));
+          remember(value, tick);
+          ticks.push(tick);
+        });
+        diagram.push(...ticks);
+      });
+    } else {
+      const gap = document.createElement("span");
+      gap.className = "period-gap";
+      gap.textContent = "…";
+      field.append(gap);
+      [[a, laneA], [b, laneB]].forEach(([n, lane]) => {
+        const early = Math.min(3, Math.floor((least - 1) / n));
+        const ticks = [];
+        for (let i = 0; i < early; i += 1) {
+          ticks.push(placeTick(lane, 0.08 + i * 0.08, i === 0 ? String(n) : ""));
+        }
+        if (ticks.length) diagram.push(ticks);
+      });
+      diagram.push([gap]);
+    }
+
+    [least, second].forEach((value, index) => {
+      const at = many ? (index === 0 ? 0.62 : 0.9) : (value / second) * 0.92;
+      const { meet, text } = placeMeet(field, at);
+      text.textContent = String(value);
+      const tone = index === 0 ? 3 : 2;
+      const paint = [[meet, tone]];
+      (marks.get(value) || []).forEach((el) => paint.push([el, tone]));
+      diagram.push({ show: [meet], paint });
+    });
+    diagram.push([more]);
+    diagram.unshift([view]);
+    beats.push(...diagram);
+  }
+
+  function appendSquare(tile, side, diagram, tone) {
+    const n = Math.round(side / tile);
+    const frame = document.createElement("figure");
+    frame.className = "square-tile";
+    const board = document.createElement("div");
+    board.className = "tile-board is-square";
+    board.style.setProperty("--cols", String(n));
+    board.style.setProperty("--rows", String(n));
+    board.setAttribute("role", "img");
+    board.setAttribute("aria-label", `邊長 ${tile} 的正方形，${n}×${n} 塊鋪成邊長 ${side}`);
+    const caption = document.createElement("figcaption");
+    caption.textContent = `邊長 ${tile}，${n}×${n} 塊`;
+    frame.append(board, caption);
+
+    const dense = n > 6;
+    if (dense) {
+      board.classList.add("is-dense");
+      const label = document.createElement("span");
+      label.className = "tile-dense-label";
+      label.textContent = `${n}×${n}`;
+      paintStep(label, tone);
+      board.append(label);
+      diagram.push([board]);
+      return frame;
+    }
+
+    const cells = [];
+    const showNum = n <= 3;
+    for (let r = 0; r < n; r += 1) {
+      for (let c = 0; c < n; c += 1) {
+        const cell = document.createElement("span");
+        cell.className = "tile-cell";
+        if (c === n - 1) cell.classList.add("is-last-col");
+        if (r === n - 1) cell.classList.add("is-last-row");
+        if (showNum) cell.textContent = String(tile);
+        paintStep(cell, tone);
+        board.append(cell);
+        cells.push(cell);
+      }
+    }
+    if (cells.length <= 12) cells.forEach((cell) => diagram.push([cell]));
+    else {
+      for (let r = 0; r < n; r += 1) diagram.push(cells.slice(r * n, (r + 1) * n));
+    }
+    return frame;
+  }
+
+  function appendSquares(a, b, least, beats) {
+    const diagram = [];
+    const view = document.createElement("div");
+    view.className = "square-view";
+    const title = document.createElement("p");
+    title.className = "figure-label";
+    title.textContent = "最小正方形";
+    const pair = document.createElement("div");
+    pair.className = "square-pair";
+    pair.append(appendSquare(a, least, diagram, 0), appendSquare(b, least, diagram, 1));
+    view.append(title, pair);
+    commonBoard.append(view);
+    diagram.unshift([view]);
+    beats.push(...diagram);
+  }
+
   function renderCommon(a, b) {
     const least = lcm(a, b);
     const second = least * 2;
@@ -456,6 +636,8 @@
     tail.classList.add("is-gap");
     answerBoard.append(tail);
     beats.push([tail]);
+    appendPeriod(a, b, least, second, beats);
+    appendSquares(a, b, least, beats);
     return { beats, least, second };
   }
 
@@ -562,7 +744,9 @@
       const ok = await reveal(beats, paceFor(beats.length), token);
       if (!ok) return;
       commonBoard.removeAttribute("aria-hidden");
-      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。${second} 比 ${least} 大，後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
+      const acrossA = Math.round(least / a);
+      const acrossB = Math.round(least / b);
+      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。時間軸在 ${least} 第一次對齊，到 ${second} 再對齊。邊長 ${a} 用 ${acrossA}×${acrossA} 塊、邊長 ${b} 用 ${acrossB}×${acrossB} 塊，都鋪滿邊長 ${least} 的正方形。後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
       return;
     }
 

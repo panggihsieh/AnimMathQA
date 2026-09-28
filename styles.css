@@ -1062,6 +1062,168 @@ label {
   min-height: 2.6rem;
 }
 
+.figure-label {
+  margin: 0.85rem 0 0.4rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--leaf-deep);
+}
+
+.period-view,
+.square-view {
+  opacity: 0;
+}
+
+.period-view.is-in,
+.square-view.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.period {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.35rem 0.55rem;
+  align-items: end;
+}
+
+.period-names {
+  display: grid;
+  grid-template-rows: 2.35rem 2.35rem;
+  align-items: end;
+  padding-bottom: 0.2rem;
+  color: var(--leaf-deep);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.period-names span {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.35rem;
+  padding-bottom: 0.15rem;
+}
+
+.period-field {
+  position: relative;
+  min-width: 0;
+  padding-top: 1.35rem;
+}
+
+.period-lanes {
+  display: grid;
+  grid-template-rows: 2.35rem 2.35rem;
+}
+
+.period-lane {
+  position: relative;
+  border-bottom: 2.5px solid var(--ink);
+}
+
+.period-tick,
+.period-meet,
+.period-gap,
+.period-more {
+  opacity: 0;
+}
+
+.period-tick.is-in,
+.period-meet.is-in,
+.period-gap.is-in,
+.period-more.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.period-tick {
+  position: absolute;
+  left: calc(var(--at) * 100%);
+  bottom: 0;
+  width: 2px;
+  height: 0.55rem;
+  background: var(--step, var(--ink));
+  transform: translateX(-50%);
+}
+
+.period-tick span,
+.period-meet span {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--step, var(--ink));
+}
+
+.period-tick span {
+  bottom: 0.65rem;
+}
+
+.period-meet {
+  position: absolute;
+  left: calc(var(--at) * 100%);
+  top: 1.35rem;
+  bottom: 0;
+  width: 2px;
+  background: var(--step, var(--leaf));
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.period-meet span {
+  bottom: calc(100% + 0.15rem);
+  color: var(--step, var(--leaf-deep));
+}
+
+.period-gap {
+  position: absolute;
+  left: 40%;
+  top: 2.15rem;
+  color: var(--muted);
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.period-more {
+  padding-bottom: 0.85rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.square-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 10.5rem));
+  justify-content: center;
+  gap: 0.8rem 1.25rem;
+}
+
+.square-tile {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.tile-board.is-square {
+  width: min(100%, 9.5rem);
+}
+
+.square-tile figcaption {
+  margin: 0;
+  color: var(--leaf-deep);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .square-pair {
+    grid-template-columns: minmax(0, 11rem);
+  }
+}
+
 .tile-frame {
   display: grid;
   grid-template-columns: auto minmax(0, 26rem);
@@ -1304,7 +1466,13 @@ label {
   .tile-cell,
   .tile-board.is-dense,
   .share-col,
-  .share-grid.is-schematic {
+  .share-grid.is-schematic,
+  .period-view,
+  .square-view,
+  .period-tick,
+  .period-meet,
+  .period-gap,
+  .period-more {
     transition: none;
   }
 }
