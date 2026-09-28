@@ -23,6 +23,7 @@
       <div class="modes" role="tablist" aria-label="模式">
         <button type="button" class="mode is-active" data-mode="reduce" role="tab" aria-selected="true">約分</button>
         <button type="button" class="mode" data-mode="common" role="tab" aria-selected="false">通分</button>
+        <button type="button" class="mode" data-mode="picture" role="tab" aria-selected="false">畫圖</button>
       </div>
 
       <form id="form" class="form" autocomplete="off">
@@ -62,11 +63,30 @@
           </div>
         </div>
 
-        <label class="speed">
-          <span class="speed-label">動畫時間 <strong id="anim-seconds-label">3</strong> 秒</span>
-          <input id="anim-seconds" type="range" min="1" max="60" step="1" value="3" />
-          <span class="speed-scale" aria-hidden="true"><span>1</span><span>60</span></span>
-        </label>
+        <div class="inputs is-hidden" id="inputs-picture">
+          <div class="cut">
+            <span class="cut-label" id="cut-label">每一格再分成</span>
+            <div class="level-picks" role="radiogroup" aria-labelledby="cut-label">
+              <button type="button" class="level-btn" data-cut="2" role="radio" aria-checked="false">2</button>
+              <button type="button" class="level-btn is-active" data-cut="3" role="radio" aria-checked="true">3</button>
+              <button type="button" class="level-btn" data-cut="4" role="radio" aria-checked="false">4</button>
+            </div>
+            <span class="cut-unit">小格</span>
+          </div>
+        </div>
+
+        <div id="calc-controls">
+        <div class="speed">
+          <span class="speed-label" id="speed-label">動畫時間</span>
+          <div class="speed-picks" role="radiogroup" aria-labelledby="speed-label">
+            <button type="button" class="speed-btn is-active" data-seconds="3" role="radio" aria-checked="true">3</button>
+            <button type="button" class="speed-btn" data-seconds="12" role="radio" aria-checked="false">12</button>
+            <button type="button" class="speed-btn" data-seconds="24" role="radio" aria-checked="false">24</button>
+            <button type="button" class="speed-btn" data-seconds="47" role="radio" aria-checked="false">47</button>
+            <button type="button" class="speed-btn" data-seconds="60" role="radio" aria-checked="false">60</button>
+          </div>
+          <span class="speed-unit">秒</span>
+        </div>
 
         <div class="level">
           <span class="level-label" id="level-label">練習等級</span>
@@ -83,6 +103,7 @@
           <button type="button" class="ghost" id="btn-random">隨機示範</button>
           <button type="button" class="ghost" id="btn-reset">重設</button>
         </div>
+        </div>
       </form>
     </section>
 
@@ -90,6 +111,10 @@
       <p class="stage-label" id="stage-label">短除法求最大公因數</p>
       <div class="ladder-wrap">
         <div id="ladder" class="ladder"></div>
+      </div>
+      <div id="picture" class="picture" hidden>
+        <div id="bars" class="draw"></div>
+        <p class="picture-aside">同一杯牛奶倒進刻度更細的杯子，牛奶還是那一杯。</p>
       </div>
       <p class="result" id="result">輸入分數後按「開始動畫」。</p>
     </section>

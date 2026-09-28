@@ -12,6 +12,7 @@
       items: [
         { id: "factors", label: "因數" },
         { id: "multiples", label: "倍數" },
+        { id: "expand", label: "擴分", href: "index.html?mode=picture" },
         { id: "fractions", label: "約分通分", href: "index.html" },
       ],
     },
@@ -22,8 +23,10 @@
   const root = document.querySelector("[data-unit-menu]");
   if (!root) return;
 
-  const currentId = document.body.dataset.unit || "";
+  const params = new URLSearchParams(location.search);
+  const currentId = params.get("mode") === "picture" ? "expand" : (document.body.dataset.unit || "");
   const pickers = [];
+  const units = new Map();
 
   function closeOthers(except) {
     pickers.forEach((picker) => {
@@ -108,6 +111,7 @@
 
       list.append(option);
       options.push(option);
+      units.set(item.id, { option, value, label: item.label, domainId: domain.id });
     });
 
     function enabledOptions() {
@@ -172,6 +176,30 @@
     picker.append(button, list);
     field.append(title, picker);
     root.append(field);
+  });
+
+  function selectUnit(id) {
+    const target = units.get(id);
+    if (!target) return;
+    units.forEach((entry) => {
+      if (entry.domainId !== target.domainId) return;
+      const on = entry.option === target.option;
+      entry.option.classList.toggle("is-current", on);
+      entry.option.setAttribute("aria-selected", on ? "true" : "false");
+      const here = entry.option.querySelector(".here");
+      if (on && !here) {
+        const badge = document.createElement("span");
+        badge.className = "here";
+        badge.textContent = "目前";
+        entry.option.append(badge);
+      }
+      if (!on && here) here.remove();
+    });
+    target.value.textContent = target.label;
+  }
+
+  document.addEventListener("unit-mode", (event) => {
+    if (event.detail && event.detail.id) selectUnit(event.detail.id);
   });
 
   document.addEventListener("pointerdown", (event) => {

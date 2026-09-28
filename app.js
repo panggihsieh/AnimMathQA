@@ -7,9 +7,16 @@
   const stageLabel = $("#stage-label");
   const inputsReduce = $("#inputs-reduce");
   const inputsCommon = $("#inputs-common");
+  const inputsPicture = $("#inputs-picture");
+  const calcControls = $("#calc-controls");
+  const ladderWrap = $(".ladder-wrap");
+  const pictureEl = $("#picture");
+  const barsEl = $("#bars");
   const reduceWork = $("#reduce-work");
   const commonWork = $("#common-work");
   const modeButtons = document.querySelectorAll(".mode");
+  const cutButtons = document.querySelectorAll("[data-cut]");
+  let cut = 3;
 
   let mode = "reduce";
   let animToken = 0;
@@ -215,17 +222,26 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  const speedInput = $("#anim-seconds");
-  const speedLabel = $("#anim-seconds-label");
+  const SPEED_OPTIONS = [3, 12, 24, 47, 60];
+  let speedSeconds = 3;
+  const speedButtons = document.querySelectorAll(".speed-btn");
 
   function animationSeconds() {
-    const n = Number(speedInput.value);
-    if (n < 1) return 1;
-    if (n > 60) return 60;
-    return n || 3;
+    return SPEED_OPTIONS.includes(speedSeconds) ? speedSeconds : 3;
   }
 
-  /** 把整段動畫均分到每個出現步驟，總長等於拉桿的秒數 */
+  function setSpeed(next) {
+    const n = Number(next);
+    if (!SPEED_OPTIONS.includes(n) || n === speedSeconds) return;
+    speedSeconds = n;
+    speedButtons.forEach((btn) => {
+      const on = Number(btn.dataset.seconds) === n;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  /** 把整段動畫均分到每個出現步驟，總長等於所選秒數 */
   function paceFor(beats) {
     const ms = (animationSeconds() * 1000) / Math.max(1, beats);
     const fade = Math.min(350, ms * 0.45);
@@ -233,8 +249,167 @@
     return ms;
   }
 
-  speedInput.addEventListener("input", () => {
-    speedLabel.textContent = String(animationSeconds());
+  speedButtons.forEach((btn) => {
+    btn.addEventListener("click", () => setSpeed(btn.dataset.seconds));
+    btn.addEventListener("keydown", (event) => {
+      const index = SPEED_OPTIONS.indexOf(Number(btn.dataset.seconds));
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const next = SPEED_OPTIONS[(index + step + SPEED_OPTIONS.length) % SPEED_OPTIONS.length];
+      const target = document.querySelector(`.speed-btn[data-seconds="${next}"]`);
+      target.focus();
+      setSpeed(next);
+    });
+  });
+
+  function zhCount(n) {
+    return `${n}分之`;
+  }
+
+  function fractionReadout(num, den) {
+    const frac = document.createElement("span");
+    frac.className = "shown-frac";
+    frac.setAttribute("aria-label", `${zhCount(den)}${num}`);
+    frac.innerHTML = `<span>${num}</span><span class="bar" aria-hidden="true"></span><span>${den}</span>`;
+    return frac;
+  }
+
+  function drawBar(parts, shaded, splitEvery) {
+    const bar = document.createElement("div");
+    bar.className = "draw-bar";
+    bar.style.setProperty("--parts", String(parts));
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", `分成 ${parts} 格，塗了 ${shaded} 格`);
+    const splitGroups = [];
+    for (let i = 0; i < parts; i += 1) {
+      const cell = document.createElement("span");
+      cell.className = "cell" + (i < shaded ? " is-shaded" : "");
+      cell.setAttribute("aria-hidden", "true");
+      if (splitEvery && i < parts - 1 && (i + 1) % splitEvery !== 0) {
+        cell.classList.add("will-split");
+        const group = i % splitEvery;
+        if (!splitGroups[group]) splitGroups[group] = [];
+        splitGroups[group].push(cell);
+      }
+      bar.append(cell);
+    }
+    return { bar, splitGroups: splitGroups.filter(Boolean) };
+  }
+
+  function renderPicture() {
+    const parts = 2 * cut;
+    const board = document.createElement("div");
+    board.className = "draw-board";
+
+    const track = document.createElement("div");
+    track.className = "draw-track";
+    const line = document.createElement("div");
+    line.className = "half-line draw-reveal";
+    line.setAttribute("aria-hidden", "true");
+    const tag = document.createElement("span");
+    tag.textContent = "一半";
+    line.append(tag);
+    const step = document.createElement("p");
+    step.className = "draw-step draw-reveal";
+    step.textContent = `每一格再分成 ${cut} 小格`;
+    const top = drawBar(2, 1);
+    const bottom = drawBar(parts, cut, cut);
+    top.bar.classList.add("draw-reveal", "is-pending");
+    bottom.bar.classList.add("draw-reveal");
+    track.append(line, top.bar, step, bottom.bar);
+
+    const side = document.createElement("div");
+    side.className = "draw-side";
+    const sideGap = document.createElement("span");
+    sideGap.setAttribute("aria-hidden", "true");
+    const topFrac = fractionReadout(1, 2);
+    const bottomFrac = fractionReadout(cut, parts);
+    topFrac.classList.add("draw-reveal");
+    bottomFrac.classList.add("draw-reveal");
+    side.append(topFrac, sideGap, bottomFrac);
+
+    const times = document.createElement("div");
+    times.className = "draw-times";
+    times.setAttribute("aria-hidden", "true");
+    times.innerHTML = `<span>×${cut}</span><span></span><span>×${cut}</span>`;
+    const equal = document.createElement("span");
+    equal.className = "draw-equal";
+    equal.textContent = "=";
+    const eq = document.createElement("div");
+    eq.className = "draw-eq draw-reveal";
+    eq.setAttribute("aria-label", `${zhCount(2)}1 等於 ${zhCount(parts)}${cut}`);
+    eq.append(fractionReadout(1, 2), times, equal, fractionReadout(cut, parts));
+
+    board.append(track, side);
+    barsEl.replaceChildren(board, eq);
+    return {
+      topBar: top.bar,
+      topShade: top.bar.querySelector(".is-shaded"),
+      topFrac,
+      line,
+      step,
+      bottomBar: bottom.bar,
+      splits: bottom.splitGroups,
+      bottomFrac,
+      eq,
+    };
+  }
+
+  function pictureCaption() {
+    return `塗色都停在一半。1 和 2 一起乘 ${cut}，還是一樣大。`;
+  }
+
+  async function playPicture() {
+    const token = ++animToken;
+    const view = renderPicture();
+    const steps = [
+      () => view.topBar.classList.add("is-in"),
+      () => view.topShade.classList.add("is-in"),
+      () => view.topFrac.classList.add("is-in"),
+      () => view.line.classList.add("is-in"),
+      () => view.step.classList.add("is-in"),
+      () => view.bottomBar.classList.add("is-in"),
+      ...view.splits.map((group) => () => group.forEach((cell) => cell.classList.add("is-in"))),
+      () => view.bottomFrac.classList.add("is-in"),
+      () => view.eq.classList.add("is-in"),
+    ];
+    const finish = () => {
+      barsEl.removeAttribute("aria-hidden");
+      resultEl.hidden = false;
+      resultEl.textContent = pictureCaption();
+    };
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      steps.forEach((fn) => fn());
+      finish();
+      return;
+    }
+    const pace = paceFor(steps.length);
+    barsEl.setAttribute("aria-hidden", "true");
+    resultEl.hidden = false;
+    resultEl.textContent = "";
+    await sleep(16);
+    for (const fn of steps) {
+      if (token !== animToken) return;
+      fn();
+      await sleep(pace);
+    }
+    if (token !== animToken) return;
+    finish();
+  }
+
+  function setCut(next) {
+    cut = next;
+    cutButtons.forEach((btn) => {
+      const on = Number(btn.dataset.cut) === next;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    if (mode === "picture") playPicture();
+  }
+
+  cutButtons.forEach((btn) => {
+    btn.addEventListener("click", () => setCut(Number(btn.dataset.cut)));
   });
 
   function setMode(next) {
@@ -244,14 +419,33 @@
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-selected", on ? "true" : "false");
     });
+    const picture = next === "picture";
     inputsReduce.classList.toggle("is-hidden", next !== "reduce");
     inputsCommon.classList.toggle("is-hidden", next !== "common");
-    stageLabel.textContent =
-      next === "reduce" ? "短除法求最大公因數（約分）" : "短除法求最小公倍數（通分）";
+    inputsPicture.classList.toggle("is-hidden", !picture);
+    calcControls.classList.remove("is-hidden");
+    $(".level").hidden = picture;
+    $("#btn-random").hidden = picture;
+    ladderWrap.hidden = picture;
+    pictureEl.hidden = !picture;
     animToken += 1;
     ladderEl.innerHTML = "";
     clearWorks();
     resultEl.hidden = false;
+    const url = new URL(location.href);
+    if (picture) url.searchParams.set("mode", "picture");
+    else url.searchParams.delete("mode");
+    history.replaceState(null, "", url);
+    document.dispatchEvent(new CustomEvent("unit-mode", {
+      detail: { id: picture ? "expand" : "fractions" },
+    }));
+    if (picture) {
+      stageLabel.textContent = "畫圖表示";
+      playPicture();
+      return;
+    }
+    stageLabel.textContent =
+      next === "reduce" ? "短除法求最大公因數（約分）" : "短除法求最小公倍數（通分）";
     resultEl.textContent = "輸入分數後按「開始動畫」。";
   }
 
@@ -263,6 +457,10 @@
 
   $("#btn-reset").addEventListener("click", () => {
     animToken += 1;
+    if (mode === "picture") {
+      setCut(3);
+      return;
+    }
     if (mode === "reduce") {
       $("#num").value = 24;
       $("#den").value = 42;
@@ -488,6 +686,10 @@
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (mode === "picture") {
+      playPicture();
+      return;
+    }
 
     if (mode === "reduce") {
       const num = Number($("#num").value);
@@ -543,5 +745,5 @@
     await playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace);
   });
 
-  setMode("reduce");
+  setMode(new URLSearchParams(location.search).get("mode") === "picture" ? "picture" : "reduce");
 })();
