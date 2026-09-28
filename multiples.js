@@ -616,127 +616,76 @@
     beats.push(...diagram);
   }
 
-  /** 長邊在水平方向，每次沿長邊堆上邊長等於短邊的正方形。 */
-  function placeCuts(length, width) {
-    const steps = [];
-    function cut(x, y, len, wid, horizontal, step) {
-      if (len === 0 || wid === 0) return;
-      if (len < wid) {
-        cut(x, y, wid, len, !horizontal, step);
-        return;
-      }
-      const side = wid;
-      const count = Math.floor(len / side);
-      const rem = len % side;
-      const batch = [];
-      for (let i = 0; i < count; i += 1) {
-        batch.push({
-          x: horizontal ? x + i * side : x,
-          y: horizontal ? y : y + i * side,
-          side,
-          step,
-        });
-      }
-      steps.push(batch);
-      if (rem === 0) return;
-      if (horizontal) cut(x + count * side, y, wid, rem, false, step + 1);
-      else cut(x, y + count * side, wid, rem, true, step + 1);
-    }
-    cut(0, 0, length, width, true, 0);
-    return steps;
+  /** 兩邊長各自堆成同一個正方形，邊長就是最小公倍數。 */
+  function squareSentence(a, b, least) {
+    const na = least / a;
+    const nb = least / b;
+    if (a === b) return `${a} 和 ${b} 的最小公倍數是 ${least}，最小正方形的邊長就是 ${least}。`;
+    return `${a} 和 ${b} 的最小公倍數是 ${least}。邊長 ${a} 的正方形橫向 ${na} 塊、直向 ${na} 塊，邊長 ${b} 的正方形橫向 ${nb} 塊、直向 ${nb} 塊，堆疊成邊長 ${least} 的最小正方形。`;
   }
 
-  function stackSentence(length, width, steps) {
-    if (steps.length === 1) return `長為 ${length}、寬為 ${width}，已經是正方形。`;
-    const parts = steps.map((batch, index) => {
-      const side = batch[0].side;
-      const lead = index === 0 ? "先" : "再";
-      return batch.length === 1
-        ? `${lead}堆上邊長 ${side} 的正方形`
-        : `${lead}堆上 ${batch.length} 個邊長 ${side} 的正方形`;
-    });
-    const small = steps[steps.length - 1][0].side;
-    return `長為 ${length}、寬為 ${width} 的長方形，${parts.join("，")}。最小的正方形邊長是 ${small}。`;
-  }
-
-  function appendCuts(a, b, beats) {
-    const length = Math.max(a, b);
-    const width = Math.min(a, b);
-    const steps = placeCuts(length, width);
+  function appendSquares(a, b, least, beats) {
+    const sentence = squareSentence(a, b, least);
     const view = document.createElement("div");
     view.className = "square-view";
     const title = document.createElement("p");
     title.className = "figure-label";
-    title.textContent = "最小正方形";
+    title.textContent = "堆疊成最小正方形";
     const prop = document.createElement("p");
     prop.className = "cut-prop";
-    prop.textContent = steps.length === 1
-      ? `長為 ${length}、寬為 ${width}，已經是正方形。`
-      : `長為 ${length}、寬為 ${width} 的長方形，堆疊最大正方形的過程。`;
+    prop.textContent = sentence;
+    const pair = document.createElement("div");
+    pair.className = "lcm-pair";
 
-    const frame = document.createElement("div");
-    frame.className = "cut-frame";
-    const widthLabel = document.createElement("span");
-    widthLabel.className = "cut-width";
-    widthLabel.textContent = `寬 ${width}`;
-    const board = document.createElement("div");
-    board.className = "cut-board";
-    board.style.setProperty("--len", String(length));
-    board.style.setProperty("--wid", String(width));
-    board.setAttribute("role", "img");
-    board.setAttribute("aria-label", stackSentence(length, width, steps));
-    const lengthLabel = document.createElement("span");
-    lengthLabel.className = "cut-length";
-    lengthLabel.textContent = `長 ${length}`;
-    frame.append(widthLabel, board, lengthLabel);
-    view.append(title, prop, frame);
-    commonBoard.append(view);
+    const plans = a === b ? [{ side: a, tone: 0 }] : [{ side: a, tone: 0 }, { side: b, tone: 1 }];
+    const cellBeats = plans.map((plan) => {
+      const n = least / plan.side;
+      const one = document.createElement("div");
+      one.className = "lcm-one";
+      const note = document.createElement("p");
+      note.className = "lcm-note";
+      note.textContent = n === 1
+        ? `邊長 ${plan.side} 的正方形`
+        : `邊長 ${plan.side} 的正方形，${n} × ${n} 塊`;
+      const board = document.createElement("div");
+      board.className = "cut-board";
+      board.style.setProperty("--len", String(least));
+      board.style.setProperty("--wid", String(least));
+      board.setAttribute("role", "img");
+      board.setAttribute("aria-label", `邊長 ${least} 的正方形，用邊長 ${plan.side} 的正方形堆 ${n} 乘 ${n} 塊`);
+      const side = document.createElement("p");
+      side.className = "lcm-side";
+      side.textContent = `邊長 ${least}`;
+      one.append(note, board, side);
+      pair.append(one);
 
-    const pieces = steps.flat();
-    const grouped = pieces.length > 24;
-    const regions = grouped
-      ? steps.map((batch) => {
-        const x = Math.min(...batch.map((sq) => sq.x));
-        const y = Math.min(...batch.map((sq) => sq.y));
-        const right = Math.max(...batch.map((sq) => sq.x + sq.side));
-        const bottom = Math.max(...batch.map((sq) => sq.y + sq.side));
-        return {
-          x,
-          y,
-          w: right - x,
-          h: bottom - y,
-          step: batch[0].step,
-          label: batch.length === 1 ? String(batch[0].side) : `${batch.length} 個`,
-        };
-      })
-      : pieces.map((sq) => ({
-        x: sq.x,
-        y: sq.y,
-        w: sq.side,
-        h: sq.side,
-        step: sq.step,
-        label: (sq.side / length >= 0.18 && sq.side / width >= 0.22) ? String(sq.side) : "",
-      }));
-
-    const byStep = [];
-    regions.forEach((region) => {
-      const cell = document.createElement("span");
-      cell.className = "cut-cell";
-      cell.style.setProperty("--x", String(region.x));
-      cell.style.setProperty("--y", String(region.y));
-      cell.style.setProperty("--w", String(region.w));
-      cell.style.setProperty("--h", String(region.h));
-      if (region.x + region.w === length) cell.classList.add("is-last-col");
-      if (region.y + region.h === width) cell.classList.add("is-last-row");
-      if (region.label) cell.textContent = region.label;
-      paintStep(cell, region.step);
-      board.append(cell);
-      if (!byStep[region.step]) byStep[region.step] = [];
-      byStep[region.step].push(cell);
+      const cells = [];
+      const dense = n > 8;
+      const count = dense ? 1 : n;
+      for (let y = 0; y < count; y += 1) {
+        for (let x = 0; x < count; x += 1) {
+          const cell = document.createElement("span");
+          cell.className = "cut-cell";
+          const unit = dense ? least : plan.side;
+          cell.style.setProperty("--x", String(x * unit));
+          cell.style.setProperty("--y", String(y * unit));
+          cell.style.setProperty("--w", String(unit));
+          cell.style.setProperty("--h", String(unit));
+          if (x === count - 1) cell.classList.add("is-last-col");
+          if (y === count - 1) cell.classList.add("is-last-row");
+          cell.textContent = dense ? `${n} × ${n}` : String(plan.side);
+          paintStep(cell, plan.tone);
+          board.append(cell);
+          cells.push(cell);
+        }
+      }
+      return cells;
     });
 
-    beats.push({ show: [view], hold: 6 }, { show: [frame], hold: 3 }, ...byStep.filter(Boolean).map((cells) => cells));
-    return { length, width, steps };
+    view.append(title, prop, pair);
+    commonBoard.append(view);
+    beats.push({ show: [view], hold: 6 }, { show: [pair], hold: 3 }, ...cellBeats);
+    return { sentence };
   }
 
   function renderCommon(a, b) {
@@ -775,8 +724,8 @@
     answerBoard.append(tail);
     beats.push([tail]);
     appendPeriod(a, b, least, second, beats);
-    const cuts = appendCuts(a, b, beats);
-    return { beats, least, second, cuts };
+    const squares = appendSquares(a, b, least, beats);
+    return { beats, least, second, squares };
   }
 
   async function playLadder(steps, pace, token) {
@@ -879,12 +828,11 @@
 
     if (mode === "common") {
       commonBoard.hidden = false;
-      const { beats, least, second, cuts } = renderCommon(a, b);
+      const { beats, least, second, squares } = renderCommon(a, b);
       const ok = await reveal(beats, paceFor(beats.length), token);
       if (!ok) return;
       commonBoard.removeAttribute("aria-hidden");
-      const stacking = stackSentence(cuts.length, cuts.width, cuts.steps);
-      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。第一次相遇是 ${least}，再次相遇是 ${second}。${stacking}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
+      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。第一次相遇是 ${least}，再次相遇是 ${second}。${squares.sentence}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
       return;
     }
 

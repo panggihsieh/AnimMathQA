@@ -1349,6 +1349,43 @@ html.is-fullscreen .app {
   transition: opacity var(--anim-fade, 0.35s) ease;
 }
 
+.lcm-pair {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: end;
+  gap: 1.35rem 2rem;
+  opacity: 0;
+}
+
+.lcm-pair.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.lcm-one {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  width: min(100%, 15rem);
+}
+
+.lcm-one .cut-board {
+  width: 100%;
+}
+
+.lcm-note,
+.lcm-side {
+  margin: 0;
+  font-weight: 700;
+  color: var(--leaf-deep);
+  text-align: center;
+}
+
+.lcm-side {
+  font-size: 1.05rem;
+}
+
 .tile-frame {
   display: grid;
   grid-template-columns: auto minmax(0, 26rem);
@@ -1630,7 +1667,8 @@ html.is-fullscreen .app {
   .period-gap,
   .period-more,
   .cut-frame,
-  .cut-cell {
+  .cut-cell,
+  .lcm-pair {
     transition: none;
   }
 }
