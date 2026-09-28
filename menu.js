@@ -1,8 +1,7 @@
 (() => {
   /**
    * TIMSS 2023 四年級的三個內容領域是 Number、Measurement and Geometry、Data。
-   * 國小課程裡的 Data 就是統計：讀圖、整理與比較資料。機率要到較高年級才獨立出來。
-   * 整數的因數、倍數，與分數的約分、通分，都在「數」。
+   * 每個領域一個下拉選單。整數的因數、倍數，與分數的約分、通分，都在「數」。
    * 新單元加在對應 items，並給 href。
    * https://timss2023.org/results/grade-4-math-subdomains/
    */
@@ -24,58 +23,62 @@
   if (!root) return;
 
   const currentId = document.body.dataset.unit || "";
-  const current = DOMAINS.flatMap((domain) => domain.items.map((item) => ({ ...item, domain }))).find(
-    (item) => item.id === currentId,
-  );
+  const pickers = [];
 
-  const picker = document.createElement("div");
-  picker.className = "unit-picker";
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "unit-picker-btn";
-  button.setAttribute("aria-haspopup", "listbox");
-  button.setAttribute("aria-expanded", "false");
-  button.setAttribute("aria-controls", "unit-list");
-
-  const kicker = document.createElement("span");
-  kicker.className = "unit-picker-kicker";
-  kicker.textContent = current ? current.domain.label : "數學單元";
-
-  const value = document.createElement("span");
-  value.className = "unit-picker-value";
-  value.textContent = current ? current.label : "選擇單元";
-
-  const chevron = document.createElement("span");
-  chevron.className = "unit-picker-chevron";
-  chevron.setAttribute("aria-hidden", "true");
-
-  button.append(kicker, value, chevron);
-
-  const list = document.createElement("div");
-  list.id = "unit-list";
-  list.className = "unit-list";
-  list.setAttribute("role", "listbox");
-  list.setAttribute("aria-label", "數學單元");
-  list.hidden = true;
-
-  const options = [];
+  function closeOthers(except) {
+    pickers.forEach((picker) => {
+      if (picker !== except) picker.setOpen(false);
+    });
+  }
 
   DOMAINS.forEach((domain) => {
-    const group = document.createElement("div");
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", domain.label);
+    const hasCurrent = domain.items.some((item) => item.id === currentId);
+    const currentItem = domain.items.find((item) => item.id === currentId);
+    const field = document.createElement("div");
+    field.className = "unit-field" + (hasCurrent ? " is-current" : "");
 
-    const label = document.createElement("p");
-    label.className = "unit-group-label";
-    label.textContent = domain.label;
-    group.append(label);
+    const title = document.createElement("span");
+    title.className = "unit-title";
+    title.id = `unit-title-${domain.id}`;
+    title.textContent = domain.label;
+
+    const picker = document.createElement("div");
+    picker.className = "unit-picker";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "unit-picker-btn";
+    button.setAttribute("aria-haspopup", "listbox");
+    button.setAttribute("aria-expanded", "false");
+    const listId = `unit-list-${domain.id}`;
+    button.setAttribute("aria-controls", listId);
+
+    const value = document.createElement("span");
+    value.className = "unit-picker-value";
+    value.id = `unit-value-${domain.id}`;
+    value.textContent = currentItem ? currentItem.label : "尚未加入";
+    button.setAttribute("aria-labelledby", `${title.id} ${value.id}`);
+    button.append(value);
+
+    const chevron = document.createElement("span");
+    chevron.className = "unit-picker-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    button.append(chevron);
+
+    const list = document.createElement("div");
+    list.id = listId;
+    list.className = "unit-list";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-label", domain.label);
+    list.hidden = true;
+
+    const options = [];
 
     if (domain.items.length === 0) {
       const empty = document.createElement("p");
       empty.className = "unit-empty";
       empty.textContent = "尚未加入";
-      group.append(empty);
+      list.append(empty);
     }
 
     domain.items.forEach((item) => {
@@ -103,80 +106,83 @@
         option.append(soon);
       }
 
-      group.append(option);
+      list.append(option);
       options.push(option);
     });
 
-    list.append(group);
-  });
+    function enabledOptions() {
+      return options.filter((option) => option.getAttribute("aria-disabled") !== "true");
+    }
 
-  function setOpen(open) {
-    picker.classList.toggle("is-open", open);
-    button.setAttribute("aria-expanded", open ? "true" : "false");
-    list.hidden = !open;
-    if (open) {
+    function setOpen(open) {
+      if (open) closeOthers(api);
+      picker.classList.toggle("is-open", open);
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+      list.hidden = !open;
+      if (!open) return;
       const currentOption = options.find((option) => option.getAttribute("aria-selected") === "true");
-      (currentOption || options.find((option) => option.hasAttribute("href")) || button).focus();
+      const focusTarget = currentOption || enabledOptions()[0];
+      if (focusTarget) focusTarget.focus();
     }
-  }
 
-  function enabledOptions() {
-    return options.filter((option) => option.getAttribute("aria-disabled") !== "true");
-  }
+    button.addEventListener("click", () => {
+      setOpen(list.hidden);
+    });
 
-  button.addEventListener("click", () => {
-    setOpen(list.hidden);
-  });
-
-  button.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowDown") return;
-    event.preventDefault();
-    setOpen(true);
-  });
-
-  list.addEventListener("click", (event) => {
-    const option = event.target.closest("[role='option']");
-    if (!option) return;
-    if (option.getAttribute("aria-disabled") === "true" || option.getAttribute("aria-selected") === "true") {
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown") return;
       event.preventDefault();
-      setOpen(false);
-      button.focus();
-    }
-  });
+      setOpen(true);
+    });
 
-  list.addEventListener("keydown", (event) => {
-    const enabled = enabledOptions();
-    const index = enabled.indexOf(document.activeElement);
-    if (event.key === "Escape") {
+    list.addEventListener("click", (event) => {
+      const option = event.target.closest("[role='option']");
+      if (!option) return;
+      if (option.getAttribute("aria-disabled") === "true" || option.getAttribute("aria-selected") === "true") {
+        event.preventDefault();
+        setOpen(false);
+        button.focus();
+      }
+    });
+
+    list.addEventListener("keydown", (event) => {
+      const enabled = enabledOptions();
+      const index = enabled.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        button.focus();
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") {
+        return;
+      }
       event.preventDefault();
-      setOpen(false);
-      button.focus();
-      return;
-    }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") {
-      return;
-    }
-    event.preventDefault();
-    if (enabled.length === 0) return;
-    let next = 0;
-    if (event.key === "ArrowDown") next = index < 0 ? 0 : (index + 1) % enabled.length;
-    if (event.key === "ArrowUp") next = index <= 0 ? enabled.length - 1 : index - 1;
-    if (event.key === "Home") next = 0;
-    if (event.key === "End") next = enabled.length - 1;
-    enabled[next].focus();
+      if (enabled.length === 0) return;
+      let next = 0;
+      if (event.key === "ArrowDown") next = index < 0 ? 0 : (index + 1) % enabled.length;
+      if (event.key === "ArrowUp") next = index <= 0 ? enabled.length - 1 : index - 1;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = enabled.length - 1;
+      enabled[next].focus();
+    });
+
+    const api = { setOpen };
+    pickers.push(api);
+    picker.append(button, list);
+    field.append(title, picker);
+    root.append(field);
   });
 
   document.addEventListener("pointerdown", (event) => {
-    if (!picker.contains(event.target)) setOpen(false);
+    if (!root.contains(event.target)) closeOthers(null);
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !list.hidden) {
-      setOpen(false);
-      button.focus();
-    }
+    if (event.key !== "Escape") return;
+    const open = root.querySelector(".unit-picker.is-open .unit-picker-btn");
+    if (!open) return;
+    closeOthers(null);
+    open.focus();
   });
-
-  picker.append(button, list);
-  root.append(picker);
 })();
