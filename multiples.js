@@ -521,9 +521,9 @@
     row.className = "pair-row";
     paintStep(row, k - 1);
     const bits = [
-      [String(k), ""],
-      ["×", "pair-op"],
       [String(n), ""],
+      ["×", "pair-op"],
+      [String(k), ""],
       ["=", "pair-op"],
       [String(k * n), ""],
     ];
@@ -899,7 +899,7 @@
       }
       listEl.hidden = false;
       const steps = renderTimes(n).map(undoableBeat);
-      steps.push(textBeat(`${n} 的倍數是 1×${n}、2×${n}、3×${n}……，可以一直寫下去。`));
+      steps.push(textBeat(`${n} 的倍數是 ${n}×1、${n}×2、${n}×3……，可以一直寫下去。`));
       await runBeats(steps, paceFor(steps.length), token);
       if (token === animToken) listEl.removeAttribute("aria-hidden");
       return;

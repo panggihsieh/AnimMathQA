@@ -1413,6 +1413,10 @@ html.is-fullscreen .app {
   opacity: 0;
 }
 
+.apply-view .ladder {
+  margin: 0.2rem 0 0.15rem;
+}
+
 .apply-view.is-in {
   opacity: 1;
   transition: opacity var(--anim-fade, 0.35s) ease;

@@ -55,6 +55,31 @@
     return count;
   }
 
+  function pairDivisionSteps(a, b) {
+    const steps = [];
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    let d = 2;
+    while (d <= x && d <= y) {
+      if (x % d === 0 && y % d === 0) {
+        steps.push({ left: d, pair: [x, y] });
+        x /= d;
+        y /= d;
+      } else {
+        d += 1;
+      }
+    }
+    steps.push({ left: null, pair: [x, y] });
+    return steps;
+  }
+
+  function divisionSentence(a, b, g) {
+    const divisors = pairDivisionSteps(a, b).flatMap((step) => (step.left == null ? [] : [step.left]));
+    if (divisors.length === 0) return `${a} 和 ${b} 沒有可以一起除的數，最大公因數是 1。`;
+    if (divisors.length === 1) return `${a} 和 ${b} 一起除以 ${divisors[0]}，最大公因數是 ${g}。`;
+    return `${a} 和 ${b} 的短除法，左邊 ${divisors.join("×")}＝${g}，最大公因數是 ${g}。`;
+  }
+
   function gcd(a, b) {
     let x = Math.abs(a);
     let y = Math.abs(b);
@@ -683,6 +708,7 @@
       });
     });
     const greatest = commons[commons.length - 1];
+    appendDivision(a, b, greatest, beats);
     const tiling = appendTiles(a, b, greatest, commons.length - 1, beats);
     const sharing = appendShare(a, b, greatest, beats);
     return { beats, commons, tiling, sharing };
@@ -699,6 +725,38 @@
     prop.textContent = propText;
     view.append(title, prop);
     return view;
+  }
+
+  function appendDivision(a, b, g, beats) {
+    const steps = pairDivisionSteps(a, b);
+    const propText = divisionSentence(a, b, g);
+    const ladder = document.createElement("div");
+    ladder.className = "ladder";
+    const nodes = steps.map((step, i) => {
+      const factor = document.createElement("div");
+      factor.className = "factor";
+      factor.textContent = step.left == null ? "" : String(step.left);
+      const pair = document.createElement("div");
+      pair.className = "pair" + (i < steps.length - 1 ? " has-bracket" : "");
+      const isLast = i === steps.length - 1;
+      step.pair.forEach((value) => {
+        const num = document.createElement("span");
+        num.className = "n" + (isLast ? " final" : "");
+        num.textContent = String(value);
+        pair.append(num);
+      });
+      ladder.append(factor, pair);
+      return { factor, pair, hasFactor: step.left != null };
+    });
+    const view = figureBlock("短除法", propText);
+    view.append(ladder);
+    commonBoard.append(view);
+    beats.push({ show: [view], hold: 4 });
+    nodes.forEach((node) => {
+      const show = [node.pair];
+      if (node.hasFactor) show.push(node.factor);
+      beats.push(show);
+    });
   }
 
   function appendTiles(a, b, g, colorIndex, beats) {
@@ -835,10 +893,11 @@
     const rows = Math.round(Math.min(a, b) / g);
     const apples = Math.round(a / g);
     const cookies = Math.round(b / g);
+    const division = divisionSentence(a, b, g);
     const tile = `長方形被切成 ${cols * rows} 塊邊長 ${g} 的正方形，橫向 ${cols} 塊、直向 ${rows} 塊，正好鋪滿，沒有剩下`;
     const share = `分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾，沒有剩下`;
-    if (commons.length === 1) return `${a} 和 ${b} 的公因數只有 1。${tile}。${share}。`;
-    return `${a} 和 ${b} 的公因數：${commons.join("、")}。最大公因數是 ${g}，${tile}。${share}。`;
+    if (commons.length === 1) return `${a} 和 ${b} 的公因數只有 1。${division}${tile}。${share}。`;
+    return `${a} 和 ${b} 的公因數：${commons.join("、")}。${division}${tile}。${share}。`;
   }
 
   async function play() {
