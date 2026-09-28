@@ -534,6 +534,89 @@ label {
   box-shadow: 0 1px 4px rgba(20, 50, 40, 0.1);
 }
 
+.step-btn {
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+  color: var(--leaf-deep);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.step-btn:hover {
+  border-color: var(--leaf);
+}
+
+.step-btn:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+.step-btn.is-active {
+  background: var(--leaf);
+  color: #fff;
+  border-color: var(--leaf);
+}
+
+.teach-dock {
+  position: fixed;
+  z-index: 30;
+  top: max(0.85rem, env(safe-area-inset-top));
+  right: max(0.85rem, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.screen-btn,
+.step-dock {
+  min-height: 2.75rem;
+  border: 1.5px solid var(--leaf);
+  border-radius: 999px;
+  padding: 0.55rem 1.2rem;
+  background: #fff;
+  color: var(--leaf-deep);
+  font: inherit;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(20, 50, 40, 0.16);
+  cursor: pointer;
+}
+
+.screen-btn:hover,
+.step-dock:hover {
+  background: #f3faf6;
+}
+
+.screen-btn:focus-visible,
+.step-dock:focus-visible {
+  outline: 2px solid var(--leaf-deep);
+  outline-offset: 3px;
+}
+
+.screen-btn.is-active,
+.step-dock.is-active {
+  background: var(--leaf);
+  color: #fff;
+  border-color: var(--leaf);
+}
+
+.screen-btn.is-active:hover,
+.step-dock.is-active:hover {
+  background: var(--leaf-deep);
+}
+
+html.is-fullscreen .app {
+  width: min(960px, calc(100% - 3rem));
+}
+
+@media (max-width: 960px) {
+  .unit-nav {
+    padding-right: 12.5rem;
+  }
+}
+
 .level[hidden],
 #btn-random[hidden] {
   display: none;

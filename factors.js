@@ -132,6 +132,10 @@
   }
 
   function paceFor(beats) {
+    if (manual) {
+      document.documentElement.style.setProperty("--anim-fade", "280ms");
+      return 280;
+    }
     if (motionOff()) {
       document.documentElement.style.setProperty("--anim-fade", "0ms");
       return 0;
@@ -140,6 +144,67 @@
     const fade = Math.min(350, ms * 0.45);
     document.documentElement.style.setProperty("--anim-fade", `${fade}ms`);
     return ms;
+  }
+
+  let manual = false;
+  let playing = false;
+  const waits = new Set();
+  const stepBtn = $("#btn-step");
+
+  function paintManual() {
+    speedButtons.forEach((btn) => {
+      const on = !manual && Number(btn.dataset.seconds) === speedSeconds;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    stepBtn.classList.toggle("is-active", manual);
+    stepBtn.setAttribute("aria-pressed", manual ? "true" : "false");
+  }
+
+  function cancelWaits() {
+    const pending = [...waits];
+    waits.clear();
+    pending.forEach((finish) => finish());
+  }
+
+  function halt() {
+    animToken += 1;
+    cancelWaits();
+    playing = false;
+  }
+
+  function beginPlay() {
+    halt();
+    const token = animToken;
+    playing = true;
+    return token;
+  }
+
+  function waitPace(ms, token) {
+    if (token !== animToken) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      let timer = 0;
+      const finish = () => {
+        if (finish.done) return;
+        finish.done = true;
+        clearTimeout(timer);
+        waits.delete(finish);
+        resolve(token === animToken);
+      };
+      waits.add(finish);
+      if (manual) return;
+      if (motionOff() || ms <= 0) {
+        finish();
+        return;
+      }
+      timer = window.setTimeout(finish, ms);
+    });
+  }
+
+  function enableManual() {
+    manual = true;
+    document.documentElement.style.setProperty("--anim-fade", "280ms");
+    paintManual();
   }
 
   function compositeIn(min, max) {
@@ -170,13 +235,13 @@
 
   function setSpeed(next) {
     const n = Number(next);
-    if (!SPEED_OPTIONS.includes(n) || n === speedSeconds) return;
+    if (!SPEED_OPTIONS.includes(n)) return;
+    const resume = manual && waits.size > 0;
+    if (!manual && n === speedSeconds) return;
+    manual = false;
     speedSeconds = n;
-    speedButtons.forEach((btn) => {
-      const on = Number(btn.dataset.seconds) === n;
-      btn.classList.toggle("is-active", on);
-      btn.setAttribute("aria-checked", on ? "true" : "false");
-    });
+    paintManual();
+    if (resume) waits.values().next().value();
   }
 
   speedButtons.forEach((btn) => {
@@ -191,6 +256,16 @@
       target.focus();
       setSpeed(next);
     });
+  });
+
+  stepBtn.addEventListener("click", () => {
+    enableManual();
+    if (waits.size) {
+      waits.values().next().value();
+      return;
+    }
+    if (playing) return;
+    form.requestSubmit();
   });
 
   function pickWeighted(items, weight) {
@@ -237,7 +312,7 @@
       const n = level === "high" ? randInt(band.min, band.max) : compositeIn(band.min, band.max);
       $("#n").value = n == null ? 24 : n;
     }
-    animToken += 1;
+    halt();
     showPrompt();
   }
 
@@ -288,7 +363,7 @@
     $("#fb").disabled = !commonMode;
     stageLabel.textContent = LABELS[next];
     syncLevelLabel();
-    animToken += 1;
+    halt();
     showPrompt();
   }
 
@@ -302,7 +377,7 @@
     $("#n").value = 24;
     $("#fa").value = 6;
     $("#fb").value = 4;
-    animToken += 1;
+    halt();
     showPrompt();
   });
 
@@ -405,15 +480,15 @@
 
   async function reveal(groups, pace, token) {
     const beats = groups.map(beatOf);
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       beats.forEach(applyBeat);
       return token === animToken;
     }
-    await sleep(16);
+    if (!manual) await sleep(16);
     for (const beat of beats) {
       if (token !== animToken) return false;
       applyBeat(beat);
-      await sleep(pace * beat.hold);
+      if (!(await waitPace(pace * beat.hold, token))) return false;
     }
     return token === animToken;
   }
@@ -442,14 +517,14 @@
       node.pair.classList.add("is-in");
       if (node.hasFactor) node.factor.classList.add("is-in");
     };
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       nodes.forEach(show);
       return token === animToken;
     }
     for (const node of nodes) {
       if (token !== animToken) return false;
       show(node);
-      await sleep(pace);
+      if (!(await waitPace(pace, token))) return false;
     }
     return token === animToken;
   }
@@ -673,7 +748,8 @@
   }
 
   async function play() {
-    const token = ++animToken;
+    const token = beginPlay();
+    try {
     clearStage();
     if (mode === "common") {
       const a = readField("#fa");
@@ -730,17 +806,24 @@
     }
     const expr = equation(n, primes);
     resultEl.append(expr);
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       expr.classList.add("is-in");
       return;
     }
-    await sleep(16);
-    if (token !== animToken) return;
+    if (manual) {
+      if (!(await waitPace(280, token))) return;
+    } else {
+      await sleep(16);
+      if (token !== animToken) return;
+    }
     expr.classList.add("is-in");
+    } finally {
+      if (token === animToken) playing = false;
+    }
   }
 
   form.addEventListener("invalid", () => {
-    animToken += 1;
+    halt();
     showPrompt();
   }, true);
 

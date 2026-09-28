@@ -164,7 +164,7 @@
       $("#b-num").value = pair.bn;
       $("#b-den").value = pair.bd;
     }
-    animToken += 1;
+    halt();
     ladderEl.innerHTML = "";
     clearWorks();
     resultEl.hidden = false;
@@ -230,19 +230,88 @@
     return SPEED_OPTIONS.includes(speedSeconds) ? speedSeconds : 3;
   }
 
-  function setSpeed(next) {
-    const n = Number(next);
-    if (!SPEED_OPTIONS.includes(n) || n === speedSeconds) return;
-    speedSeconds = n;
+  let manual = false;
+  let playing = false;
+  const waits = new Set();
+  const stepBtn = $("#btn-step");
+
+  function motionOff() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function paintManual() {
     speedButtons.forEach((btn) => {
-      const on = Number(btn.dataset.seconds) === n;
+      const on = !manual && Number(btn.dataset.seconds) === speedSeconds;
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-checked", on ? "true" : "false");
     });
+    stepBtn.classList.toggle("is-active", manual);
+    stepBtn.setAttribute("aria-pressed", manual ? "true" : "false");
+  }
+
+  function cancelWaits() {
+    const pending = [...waits];
+    waits.clear();
+    pending.forEach((finish) => finish());
+  }
+
+  function halt() {
+    animToken += 1;
+    cancelWaits();
+    playing = false;
+  }
+
+  function beginPlay() {
+    halt();
+    const token = animToken;
+    playing = true;
+    return token;
+  }
+
+  function waitPace(ms, token) {
+    if (token !== animToken) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      let timer = 0;
+      const finish = () => {
+        if (finish.done) return;
+        finish.done = true;
+        clearTimeout(timer);
+        waits.delete(finish);
+        resolve(token === animToken);
+      };
+      waits.add(finish);
+      if (manual) return;
+      if (motionOff() || ms <= 0) {
+        finish();
+        return;
+      }
+      timer = window.setTimeout(finish, ms);
+    });
+  }
+
+  function enableManual() {
+    manual = true;
+    document.documentElement.style.setProperty("--anim-fade", "280ms");
+    paintManual();
+  }
+
+  function setSpeed(next) {
+    const n = Number(next);
+    if (!SPEED_OPTIONS.includes(n)) return;
+    const resume = manual && waits.size > 0;
+    if (!manual && n === speedSeconds) return;
+    manual = false;
+    speedSeconds = n;
+    paintManual();
+    if (resume) waits.values().next().value();
   }
 
   /** 把整段動畫均分到每個出現步驟，總長等於所選秒數 */
   function paceFor(beats) {
+    if (manual) {
+      document.documentElement.style.setProperty("--anim-fade", "280ms");
+      return 280;
+    }
     const ms = (animationSeconds() * 1000) / Math.max(1, beats);
     const fade = Math.min(350, ms * 0.45);
     document.documentElement.style.setProperty("--anim-fade", `${fade}ms`);
@@ -261,6 +330,16 @@
       target.focus();
       setSpeed(next);
     });
+  });
+
+  stepBtn.addEventListener("click", () => {
+    enableManual();
+    if (waits.size) {
+      waits.values().next().value();
+      return;
+    }
+    if (playing) return;
+    form.requestSubmit();
   });
 
   function zhCount(n) {
@@ -361,7 +440,8 @@
   }
 
   async function playPicture() {
-    const token = ++animToken;
+    const token = beginPlay();
+    try {
     const view = renderPicture();
     const steps = [
       () => view.topBar.classList.add("is-in"),
@@ -379,7 +459,7 @@
       resultEl.hidden = false;
       resultEl.textContent = pictureCaption();
     };
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (motionOff() && !manual) {
       steps.forEach((fn) => fn());
       finish();
       return;
@@ -388,14 +468,17 @@
     barsEl.setAttribute("aria-hidden", "true");
     resultEl.hidden = false;
     resultEl.textContent = "";
-    await sleep(16);
+    if (!manual) await sleep(16);
     for (const fn of steps) {
       if (token !== animToken) return;
       fn();
-      await sleep(pace);
+      if (!(await waitPace(pace, token))) return;
     }
     if (token !== animToken) return;
     finish();
+    } finally {
+      if (token === animToken) playing = false;
+    }
   }
 
   function setCut(next) {
@@ -428,7 +511,7 @@
     $("#btn-random").hidden = picture;
     ladderWrap.hidden = picture;
     pictureEl.hidden = !picture;
-    animToken += 1;
+    halt();
     ladderEl.innerHTML = "";
     clearWorks();
     resultEl.hidden = false;
@@ -456,7 +539,7 @@
   $("#btn-random").addEventListener("click", fillRandom);
 
   $("#btn-reset").addEventListener("click", () => {
-    animToken += 1;
+    halt();
     if (mode === "picture") {
       setCut(3);
       return;
@@ -477,7 +560,7 @@
   });
 
   async function playLadder(steps, { markFinal = true, lastClasses = null, pace = 420 } = {}) {
-    const token = ++animToken;
+    const token = beginPlay();
     ladderEl.innerHTML = "";
 
     const nodes = [];
@@ -507,7 +590,7 @@
       if (token !== animToken) return null;
       node.pair.classList.add("is-in");
       if (node.hasFactor) node.factor.classList.add("is-in");
-      await sleep(pace);
+      if (!(await waitPace(pace, token))) return null;
     }
     return token;
   }
@@ -582,10 +665,10 @@
     for (const group of groups) {
       if (token !== animToken) return;
       reduceWork.append(...group);
-      await sleep(16);
+      if (!manual) await sleep(16);
       if (token !== animToken) return;
       group.forEach((node) => node.classList.add("is-in"));
-      await sleep(Math.max(0, pace - 16));
+      if (!(await waitPace(Math.max(0, pace - 16), token))) return;
     }
   }
 
@@ -662,10 +745,10 @@
     commonWork.replaceChildren(lcmRow, ...lines.map((line) => line.row));
 
     if (token !== animToken) return;
-    await sleep(16);
+    if (!manual) await sleep(16);
     if (token !== animToken) return;
     lcmExpr.classList.add("is-in");
-    await sleep(Math.max(0, pace - 16));
+    if (!(await waitPace(Math.max(0, pace - 16), token))) return;
 
     const stepCount = Math.max(...lines.map((line) => line.groups.length));
     for (let i = 0; i < stepCount; i += 1) {
@@ -677,10 +760,10 @@
         line.row.append(...group);
         batch.push(...group);
       });
-      await sleep(16);
+      if (!manual) await sleep(16);
       if (token !== animToken) return;
       batch.forEach((node) => node.classList.add("is-in"));
-      await sleep(Math.max(0, pace - 16));
+      if (!(await waitPace(Math.max(0, pace - 16), token))) return;
     }
   }
 
@@ -695,7 +778,7 @@
       const num = Number($("#num").value);
       const den = Number($("#den").value);
       if (!num || !den || num < 1 || den < 1) {
-        animToken += 1;
+        halt();
         clearWorks();
         resultEl.hidden = false;
         resultEl.textContent = "請輸入大於 0 的整數。";
@@ -713,7 +796,11 @@
       const pace = paceFor(steps.length + resultBeats);
       const token = await playLadder(steps, { pace });
       if (token == null) return;
-      await playReduceWork(num, den, g, token, pace);
+      try {
+        await playReduceWork(num, den, g, token, pace);
+      } finally {
+        if (token === animToken) playing = false;
+      }
       return;
     }
 
@@ -722,7 +809,7 @@
     const bn = Number($("#b-num").value);
     const bd = Number($("#b-den").value);
     if ([an, ad, bn, bd].some((n) => !n || n < 1)) {
-      animToken += 1;
+      halt();
       clearWorks();
       resultEl.hidden = false;
       resultEl.textContent = "請輸入大於 0 的整數。";
@@ -742,7 +829,11 @@
     const pace = paceFor(steps.length + resultBeats);
     const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"], pace });
     if (token == null) return;
-    await playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace);
+    try {
+      await playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace);
+    } finally {
+      if (token === animToken) playing = false;
+    }
   });
 
   setMode(new URLSearchParams(location.search).get("mode") === "picture" ? "picture" : "reduce");

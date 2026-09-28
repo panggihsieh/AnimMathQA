@@ -115,6 +115,10 @@
   }
 
   function paceFor(beats) {
+    if (manual) {
+      document.documentElement.style.setProperty("--anim-fade", "280ms");
+      return 280;
+    }
     if (motionOff()) {
       document.documentElement.style.setProperty("--anim-fade", "0ms");
       return 0;
@@ -123,6 +127,67 @@
     const fade = Math.min(350, ms * 0.45);
     document.documentElement.style.setProperty("--anim-fade", `${fade}ms`);
     return ms;
+  }
+
+  let manual = false;
+  let playing = false;
+  const waits = new Set();
+  const stepBtn = $("#btn-step");
+
+  function paintManual() {
+    speedButtons.forEach((btn) => {
+      const on = !manual && Number(btn.dataset.seconds) === speedSeconds;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    stepBtn.classList.toggle("is-active", manual);
+    stepBtn.setAttribute("aria-pressed", manual ? "true" : "false");
+  }
+
+  function cancelWaits() {
+    const pending = [...waits];
+    waits.clear();
+    pending.forEach((finish) => finish());
+  }
+
+  function halt() {
+    animToken += 1;
+    cancelWaits();
+    playing = false;
+  }
+
+  function beginPlay() {
+    halt();
+    const token = animToken;
+    playing = true;
+    return token;
+  }
+
+  function waitPace(ms, token) {
+    if (token !== animToken) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      let timer = 0;
+      const finish = () => {
+        if (finish.done) return;
+        finish.done = true;
+        clearTimeout(timer);
+        waits.delete(finish);
+        resolve(token === animToken);
+      };
+      waits.add(finish);
+      if (manual) return;
+      if (motionOff() || ms <= 0) {
+        finish();
+        return;
+      }
+      timer = window.setTimeout(finish, ms);
+    });
+  }
+
+  function enableManual() {
+    manual = true;
+    document.documentElement.style.setProperty("--anim-fade", "280ms");
+    paintManual();
   }
 
   function compositeIn(min, max) {
@@ -187,13 +252,13 @@
 
   function setSpeed(next) {
     const n = Number(next);
-    if (!SPEED_OPTIONS.includes(n) || n === speedSeconds) return;
+    if (!SPEED_OPTIONS.includes(n)) return;
+    const resume = manual && waits.size > 0;
+    if (!manual && n === speedSeconds) return;
+    manual = false;
     speedSeconds = n;
-    speedButtons.forEach((btn) => {
-      const on = Number(btn.dataset.seconds) === n;
-      btn.classList.toggle("is-active", on);
-      btn.setAttribute("aria-checked", on ? "true" : "false");
-    });
+    paintManual();
+    if (resume) waits.values().next().value();
   }
 
   speedButtons.forEach((btn) => {
@@ -210,6 +275,16 @@
     });
   });
 
+  stepBtn.addEventListener("click", () => {
+    enableManual();
+    if (waits.size) {
+      waits.values().next().value();
+      return;
+    }
+    if (playing) return;
+    form.requestSubmit();
+  });
+
   function fillRandom() {
     const band = LEVELS[level];
     if (twoNumbers()) {
@@ -222,7 +297,7 @@
       const n = level === "high" ? randInt(band.min, band.max) : compositeIn(band.min, band.max);
       $("#n").value = n == null ? 6 : n;
     }
-    animToken += 1;
+    halt();
     showPrompt();
   }
 
@@ -273,7 +348,7 @@
     $("#fb").disabled = !pair;
     stageLabel.textContent = LABELS[next];
     syncLevelLabel();
-    animToken += 1;
+    halt();
     showPrompt();
   }
 
@@ -287,7 +362,7 @@
     $("#n").value = 6;
     $("#fa").value = 4;
     $("#fb").value = 6;
-    animToken += 1;
+    halt();
     showPrompt();
   });
 
@@ -337,15 +412,15 @@
 
   async function reveal(groups, pace, token) {
     const beats = groups.map(beatOf);
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       beats.forEach(applyBeat);
       return token === animToken;
     }
-    await sleep(16);
+    if (!manual) await sleep(16);
     for (const beat of beats) {
       if (token !== animToken) return false;
       applyBeat(beat);
-      await sleep(pace * beat.hold);
+      if (!(await waitPace(pace * beat.hold, token))) return false;
     }
     return token === animToken;
   }
@@ -458,10 +533,13 @@
     const title = document.createElement("p");
     title.className = "figure-label";
     title.textContent = "時間軸";
+    const prop = document.createElement("p");
+    prop.className = "cut-prop";
+    prop.textContent = `${a} 和 ${b} 第一次相遇是 ${least}，再次相遇是 ${second}。`;
     const chart = document.createElement("div");
     chart.className = "period";
     chart.setAttribute("role", "img");
-    chart.setAttribute("aria-label", `${a} 和 ${b} 的時間軸在 ${least}、${second} 對齊`);
+    chart.setAttribute("aria-label", prop.textContent);
 
     const names = document.createElement("div");
     names.className = "period-names";
@@ -486,7 +564,7 @@
     more.className = "period-more";
     more.textContent = "…";
     chart.append(names, field, more);
-    view.append(title, chart);
+    view.append(title, prop, chart);
     commonBoard.append(view);
 
     const diagram = [];
@@ -538,7 +616,7 @@
     beats.push(...diagram);
   }
 
-  /** 長邊在水平方向，每次從長邊切下邊長等於短邊的正方形。 */
+  /** 長邊在水平方向，每次沿長邊堆上邊長等於短邊的正方形。 */
   function placeCuts(length, width) {
     const steps = [];
     function cut(x, y, len, wid, horizontal, step) {
@@ -568,14 +646,14 @@
     return steps;
   }
 
-  function cutSentence(length, width, steps) {
+  function stackSentence(length, width, steps) {
     if (steps.length === 1) return `長為 ${length}、寬為 ${width}，已經是正方形。`;
     const parts = steps.map((batch, index) => {
       const side = batch[0].side;
       const lead = index === 0 ? "先" : "再";
       return batch.length === 1
-        ? `${lead}切出邊長 ${side} 的正方形`
-        : `${lead}切出 ${batch.length} 個邊長 ${side} 的正方形`;
+        ? `${lead}堆上邊長 ${side} 的正方形`
+        : `${lead}堆上 ${batch.length} 個邊長 ${side} 的正方形`;
     });
     const small = steps[steps.length - 1][0].side;
     return `長為 ${length}、寬為 ${width} 的長方形，${parts.join("，")}。最小的正方形邊長是 ${small}。`;
@@ -594,7 +672,7 @@
     prop.className = "cut-prop";
     prop.textContent = steps.length === 1
       ? `長為 ${length}、寬為 ${width}，已經是正方形。`
-      : `長為 ${length}、寬為 ${width} 的長方形，切割成最大正方形的過程。`;
+      : `長為 ${length}、寬為 ${width} 的長方形，堆疊最大正方形的過程。`;
 
     const frame = document.createElement("div");
     frame.className = "cut-frame";
@@ -606,7 +684,7 @@
     board.style.setProperty("--len", String(length));
     board.style.setProperty("--wid", String(width));
     board.setAttribute("role", "img");
-    board.setAttribute("aria-label", cutSentence(length, width, steps));
+    board.setAttribute("aria-label", stackSentence(length, width, steps));
     const lengthLabel = document.createElement("span");
     lengthLabel.className = "cut-length";
     lengthLabel.textContent = `長 ${length}`;
@@ -724,14 +802,14 @@
       node.pair.classList.add("is-in");
       if (node.hasFactor) node.factor.classList.add("is-in");
     };
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       nodes.forEach(show);
       return token === animToken;
     }
     for (const node of nodes) {
       if (token !== animToken) return false;
       show(node);
-      await sleep(pace);
+      if (!(await waitPace(pace, token))) return false;
     }
     return token === animToken;
   }
@@ -773,7 +851,8 @@
   }
 
   async function play() {
-    const token = ++animToken;
+    const token = beginPlay();
+    try {
     clearStage();
 
     if (mode === "multiples") {
@@ -804,8 +883,8 @@
       const ok = await reveal(beats, paceFor(beats.length), token);
       if (!ok) return;
       commonBoard.removeAttribute("aria-hidden");
-      const cutting = cutSentence(cuts.length, cuts.width, cuts.steps);
-      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。時間軸在 ${least} 第一次對齊，到 ${second} 再對齊。${cutting}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
+      const stacking = stackSentence(cuts.length, cuts.width, cuts.steps);
+      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。第一次相遇是 ${least}，再次相遇是 ${second}。${stacking}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
       return;
     }
 
@@ -821,17 +900,24 @@
       document.createTextNode(`。${a} 和 ${b} 的最小公倍數是 ${common}，通分的公分母就是這個數。`),
     );
     resultEl.replaceChildren(wrap);
-    if (motionOff()) {
+    if (motionOff() && !manual) {
       wrap.classList.add("is-in");
       return;
     }
-    await sleep(16);
-    if (token !== animToken) return;
+    if (manual) {
+      if (!(await waitPace(280, token))) return;
+    } else {
+      await sleep(16);
+      if (token !== animToken) return;
+    }
     wrap.classList.add("is-in");
+    } finally {
+      if (token === animToken) playing = false;
+    }
   }
 
   form.addEventListener("invalid", () => {
-    animToken += 1;
+    halt();
     showPrompt();
   }, true);
 

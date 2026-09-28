@@ -213,4 +213,48 @@
     closeOthers(null);
     open.focus();
   });
+
+  const stepBtn = document.querySelector("#btn-step");
+  const stepDock = document.querySelector("#btn-step-dock");
+  if (stepBtn && stepDock) {
+    const syncDock = () => {
+      const on = stepBtn.classList.contains("is-active");
+      stepDock.classList.toggle("is-active", on);
+      stepDock.setAttribute("aria-pressed", on ? "true" : "false");
+    };
+    new MutationObserver(syncDock).observe(stepBtn, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    stepDock.hidden = false;
+    stepDock.addEventListener("click", () => stepBtn.click());
+    syncDock();
+  }
+
+  const screenBtn = document.querySelector("#btn-screen");
+  if (screenBtn) {
+    const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+    const paintScreen = () => {
+      const on = Boolean(fullscreenElement());
+      screenBtn.classList.toggle("is-active", on);
+      screenBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      screenBtn.textContent = on ? "結束全螢幕" : "全螢幕";
+      document.documentElement.classList.toggle("is-fullscreen", on);
+    };
+    screenBtn.addEventListener("click", () => {
+      if (fullscreenElement()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) exit.call(document);
+        return;
+      }
+      const page = document.documentElement;
+      const enter = page.requestFullscreen || page.webkitRequestFullscreen;
+      if (!enter) return;
+      const pending = enter.call(page);
+      if (pending && typeof pending.catch === "function") pending.catch(() => {});
+    });
+    document.addEventListener("fullscreenchange", paintScreen);
+    document.addEventListener("webkitfullscreenchange", paintScreen);
+    paintScreen();
+  }
 })();
