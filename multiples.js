@@ -325,9 +325,9 @@
   }
 
   function beatOf(item) {
-    if (Array.isArray(item)) return { show: item, paint: [] };
-    if (item && item.show) return { show: item.show, paint: item.paint || [] };
-    return { show: [item], paint: [] };
+    if (Array.isArray(item)) return { show: item, paint: [], hold: 1 };
+    if (item && item.show) return { show: item.show, paint: item.paint || [], hold: item.hold || 1 };
+    return { show: [item], paint: [], hold: 1 };
   }
 
   function applyBeat(beat) {
@@ -345,7 +345,7 @@
     for (const beat of beats) {
       if (token !== animToken) return false;
       applyBeat(beat);
-      await sleep(pace);
+      await sleep(pace * beat.hold);
     }
     return token === animToken;
   }
@@ -538,67 +538,127 @@
     beats.push(...diagram);
   }
 
-  function appendSquare(tile, side, diagram, tone) {
-    const n = Math.round(side / tile);
-    const frame = document.createElement("figure");
-    frame.className = "square-tile";
-    const board = document.createElement("div");
-    board.className = "tile-board is-square";
-    board.style.setProperty("--cols", String(n));
-    board.style.setProperty("--rows", String(n));
-    board.setAttribute("role", "img");
-    board.setAttribute("aria-label", `邊長 ${tile} 的正方形，${n}×${n} 塊鋪成邊長 ${side}`);
-    const caption = document.createElement("figcaption");
-    caption.textContent = `邊長 ${tile}，${n}×${n} 塊`;
-    frame.append(board, caption);
-
-    const dense = n > 6;
-    if (dense) {
-      board.classList.add("is-dense");
-      const label = document.createElement("span");
-      label.className = "tile-dense-label";
-      label.textContent = `${n}×${n}`;
-      paintStep(label, tone);
-      board.append(label);
-      diagram.push([board]);
-      return frame;
-    }
-
-    const cells = [];
-    const showNum = n <= 3;
-    for (let r = 0; r < n; r += 1) {
-      for (let c = 0; c < n; c += 1) {
-        const cell = document.createElement("span");
-        cell.className = "tile-cell";
-        if (c === n - 1) cell.classList.add("is-last-col");
-        if (r === n - 1) cell.classList.add("is-last-row");
-        if (showNum) cell.textContent = String(tile);
-        paintStep(cell, tone);
-        board.append(cell);
-        cells.push(cell);
+  /** 長邊在水平方向，每次從長邊切下邊長等於短邊的正方形。 */
+  function placeCuts(length, width) {
+    const steps = [];
+    function cut(x, y, len, wid, horizontal, step) {
+      if (len === 0 || wid === 0) return;
+      if (len < wid) {
+        cut(x, y, wid, len, !horizontal, step);
+        return;
       }
+      const side = wid;
+      const count = Math.floor(len / side);
+      const rem = len % side;
+      const batch = [];
+      for (let i = 0; i < count; i += 1) {
+        batch.push({
+          x: horizontal ? x + i * side : x,
+          y: horizontal ? y : y + i * side,
+          side,
+          step,
+        });
+      }
+      steps.push(batch);
+      if (rem === 0) return;
+      if (horizontal) cut(x + count * side, y, wid, rem, false, step + 1);
+      else cut(x, y + count * side, wid, rem, true, step + 1);
     }
-    if (cells.length <= 12) cells.forEach((cell) => diagram.push([cell]));
-    else {
-      for (let r = 0; r < n; r += 1) diagram.push(cells.slice(r * n, (r + 1) * n));
-    }
-    return frame;
+    cut(0, 0, length, width, true, 0);
+    return steps;
   }
 
-  function appendSquares(a, b, least, beats) {
-    const diagram = [];
+  function cutSentence(length, width, steps) {
+    if (steps.length === 1) return `長為 ${length}、寬為 ${width}，已經是正方形。`;
+    const parts = steps.map((batch, index) => {
+      const side = batch[0].side;
+      const lead = index === 0 ? "先" : "再";
+      return batch.length === 1
+        ? `${lead}切出邊長 ${side} 的正方形`
+        : `${lead}切出 ${batch.length} 個邊長 ${side} 的正方形`;
+    });
+    const small = steps[steps.length - 1][0].side;
+    return `長為 ${length}、寬為 ${width} 的長方形，${parts.join("，")}。最小的正方形邊長是 ${small}。`;
+  }
+
+  function appendCuts(a, b, beats) {
+    const length = Math.max(a, b);
+    const width = Math.min(a, b);
+    const steps = placeCuts(length, width);
     const view = document.createElement("div");
     view.className = "square-view";
     const title = document.createElement("p");
     title.className = "figure-label";
     title.textContent = "最小正方形";
-    const pair = document.createElement("div");
-    pair.className = "square-pair";
-    pair.append(appendSquare(a, least, diagram, 0), appendSquare(b, least, diagram, 1));
-    view.append(title, pair);
+    const prop = document.createElement("p");
+    prop.className = "cut-prop";
+    prop.textContent = steps.length === 1
+      ? `長為 ${length}、寬為 ${width}，已經是正方形。`
+      : `長為 ${length}、寬為 ${width} 的長方形，切割成最大正方形的過程。`;
+
+    const frame = document.createElement("div");
+    frame.className = "cut-frame";
+    const widthLabel = document.createElement("span");
+    widthLabel.className = "cut-width";
+    widthLabel.textContent = `寬 ${width}`;
+    const board = document.createElement("div");
+    board.className = "cut-board";
+    board.style.setProperty("--len", String(length));
+    board.style.setProperty("--wid", String(width));
+    board.setAttribute("role", "img");
+    board.setAttribute("aria-label", cutSentence(length, width, steps));
+    const lengthLabel = document.createElement("span");
+    lengthLabel.className = "cut-length";
+    lengthLabel.textContent = `長 ${length}`;
+    frame.append(widthLabel, board, lengthLabel);
+    view.append(title, prop, frame);
     commonBoard.append(view);
-    diagram.unshift([view]);
-    beats.push(...diagram);
+
+    const pieces = steps.flat();
+    const grouped = pieces.length > 24;
+    const regions = grouped
+      ? steps.map((batch) => {
+        const x = Math.min(...batch.map((sq) => sq.x));
+        const y = Math.min(...batch.map((sq) => sq.y));
+        const right = Math.max(...batch.map((sq) => sq.x + sq.side));
+        const bottom = Math.max(...batch.map((sq) => sq.y + sq.side));
+        return {
+          x,
+          y,
+          w: right - x,
+          h: bottom - y,
+          step: batch[0].step,
+          label: batch.length === 1 ? String(batch[0].side) : `${batch.length} 個`,
+        };
+      })
+      : pieces.map((sq) => ({
+        x: sq.x,
+        y: sq.y,
+        w: sq.side,
+        h: sq.side,
+        step: sq.step,
+        label: (sq.side / length >= 0.18 && sq.side / width >= 0.22) ? String(sq.side) : "",
+      }));
+
+    const byStep = [];
+    regions.forEach((region) => {
+      const cell = document.createElement("span");
+      cell.className = "cut-cell";
+      cell.style.setProperty("--x", String(region.x));
+      cell.style.setProperty("--y", String(region.y));
+      cell.style.setProperty("--w", String(region.w));
+      cell.style.setProperty("--h", String(region.h));
+      if (region.x + region.w === length) cell.classList.add("is-last-col");
+      if (region.y + region.h === width) cell.classList.add("is-last-row");
+      if (region.label) cell.textContent = region.label;
+      paintStep(cell, region.step);
+      board.append(cell);
+      if (!byStep[region.step]) byStep[region.step] = [];
+      byStep[region.step].push(cell);
+    });
+
+    beats.push({ show: [view], hold: 6 }, { show: [frame], hold: 3 }, ...byStep.filter(Boolean).map((cells) => cells));
+    return { length, width, steps };
   }
 
   function renderCommon(a, b) {
@@ -637,8 +697,8 @@
     answerBoard.append(tail);
     beats.push([tail]);
     appendPeriod(a, b, least, second, beats);
-    appendSquares(a, b, least, beats);
-    return { beats, least, second };
+    const cuts = appendCuts(a, b, beats);
+    return { beats, least, second, cuts };
   }
 
   async function playLadder(steps, pace, token) {
@@ -740,13 +800,12 @@
 
     if (mode === "common") {
       commonBoard.hidden = false;
-      const { beats, least, second } = renderCommon(a, b);
+      const { beats, least, second, cuts } = renderCommon(a, b);
       const ok = await reveal(beats, paceFor(beats.length), token);
       if (!ok) return;
       commonBoard.removeAttribute("aria-hidden");
-      const acrossA = Math.round(least / a);
-      const acrossB = Math.round(least / b);
-      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。時間軸在 ${least} 第一次對齊，到 ${second} 再對齊。邊長 ${a} 用 ${acrossA}×${acrossA} 塊、邊長 ${b} 用 ${acrossB}×${acrossB} 塊，都鋪滿邊長 ${least} 的正方形。後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
+      const cutting = cutSentence(cuts.length, cuts.width, cuts.steps);
+      resultEl.textContent = `${a} 和 ${b} 的公倍數有 ${least}、${second}……。時間軸在 ${least} 第一次對齊，到 ${second} 再對齊。${cutting}後面還會更大，所以沒有最大公倍數。最小公倍數是 ${least}。`;
       return;
     }
 

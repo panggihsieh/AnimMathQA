@@ -300,8 +300,8 @@
 
   $("#btn-reset").addEventListener("click", () => {
     $("#n").value = 24;
-    $("#fa").value = 24;
-    $("#fb").value = 36;
+    $("#fa").value = 6;
+    $("#fb").value = 4;
     animToken += 1;
     showPrompt();
   });
@@ -393,9 +393,9 @@
   }
 
   function beatOf(item) {
-    if (Array.isArray(item)) return { show: item, paint: [] };
-    if (item && item.show) return { show: item.show, paint: item.paint || [] };
-    return { show: [item], paint: [] };
+    if (Array.isArray(item)) return { show: item, paint: [], hold: 1 };
+    if (item && item.show) return { show: item.show, paint: item.paint || [], hold: item.hold || 1 };
+    return { show: [item], paint: [], hold: 1 };
   }
 
   function applyBeat(beat) {
@@ -413,7 +413,7 @@
     for (const beat of beats) {
       if (token !== animToken) return false;
       applyBeat(beat);
-      await sleep(pace);
+      await sleep(pace * beat.hold);
     }
     return token === animToken;
   }
@@ -519,27 +519,45 @@
     return { beats, commons, tiling, sharing };
   }
 
+  function figureBlock(titleText, propText) {
+    const view = document.createElement("div");
+    view.className = "apply-view";
+    const title = document.createElement("p");
+    title.className = "figure-label";
+    title.textContent = titleText;
+    const prop = document.createElement("p");
+    prop.className = "cut-prop";
+    prop.textContent = propText;
+    view.append(title, prop);
+    return view;
+  }
+
   function appendTiles(a, b, g, colorIndex, beats) {
     const widthN = Math.max(a, b);
     const heightN = Math.min(a, b);
     const cols = Math.round(widthN / g);
     const rows = Math.round(heightN / g);
     const frame = document.createElement("div");
-    frame.className = "tile-frame";
+    frame.className = "tile-frame tile-draw";
     const y = document.createElement("span");
     y.className = "tile-axis";
-    y.textContent = String(heightN);
+    y.textContent = `寬 ${heightN}`;
     const x = document.createElement("span");
     x.className = "tile-axis";
-    x.textContent = String(widthN);
+    x.textContent = `長 ${widthN}`;
     const board = document.createElement("div");
     board.className = "tile-board";
     board.style.setProperty("--cols", String(cols));
     board.style.setProperty("--rows", String(rows));
     board.setAttribute("role", "img");
-    board.setAttribute("aria-label", `長 ${widthN}、寬 ${heightN}，用邊長 ${g} 的正方形鋪成 ${cols} 乘 ${rows}`);
+    const blocks = cols * rows;
+    const propText = `長為 ${widthN}、寬為 ${heightN} 的長方形，最大公因數是 ${g}。長方形被切成 ${blocks} 塊邊長 ${g} 的正方形，橫向 ${cols} 塊、直向 ${rows} 塊，正好鋪滿，沒有剩下。`;
+    board.setAttribute("aria-label", propText);
     frame.append(y, board, x);
-    commonBoard.append(frame);
+    const view = figureBlock("最大正方形", propText);
+    view.append(frame);
+    commonBoard.append(view);
+    beats.push({ show: [view], hold: 4 }, [frame]);
 
     const many = cols > 16 || rows > 12 || cols * rows > 96;
     if (many) {
@@ -593,10 +611,11 @@
   function appendShare(a, b, g, beats) {
     const apples = Math.round(a / g);
     const cookies = Math.round(b / g);
+    const propText = `${a} 顆蘋果、${b} 片餅乾，分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾，沒有剩下。`;
     const share = document.createElement("div");
     share.className = "share";
     share.setAttribute("role", "img");
-    share.setAttribute("aria-label", `分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾`);
+    share.setAttribute("aria-label", propText);
     const names = document.createElement("div");
     names.className = "share-names";
     ["蘋果", "餅乾"].forEach((text) => {
@@ -610,7 +629,10 @@
     grid.className = "share-grid";
     share.append(names, scroll);
     scroll.append(grid);
-    commonBoard.append(share);
+    const view = figureBlock("分堆", propText);
+    view.append(share);
+    commonBoard.append(view);
+    beats.push({ show: [view], hold: 4 });
 
     if (g > 20) {
       grid.classList.add("is-schematic");
@@ -619,7 +641,7 @@
       label.className = "share-schematic-label";
       label.textContent = `${g} 堆`;
       grid.append(label);
-      beats.push([grid]);
+      beats.push([share, grid]);
       return { piles: g, apples, cookies };
     }
 
@@ -631,8 +653,10 @@
       grid.append(col);
       cols.push(col);
     }
-    if (cols.length <= 12) cols.forEach((col) => beats.push([col]));
-    else beats.push(cols);
+    if (cols.length === 0) beats.push([share]);
+    else if (cols.length <= 12) {
+      cols.forEach((col, index) => beats.push(index === 0 ? [share, col] : [col]));
+    } else beats.push([share, ...cols]);
     return { piles: g, apples, cookies };
   }
 
@@ -642,7 +666,7 @@
     const rows = Math.round(Math.min(a, b) / g);
     const apples = Math.round(a / g);
     const cookies = Math.round(b / g);
-    const tile = `邊長 ${g} 的正方形用 ${cols}×${rows} 塊鋪滿`;
+    const tile = `長方形被切成 ${cols * rows} 塊邊長 ${g} 的正方形，橫向 ${cols} 塊、直向 ${rows} 塊，正好鋪滿，沒有剩下`;
     const share = `分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾，沒有剩下`;
     if (commons.length === 1) return `${a} 和 ${b} 的公因數只有 1。${tile}。${share}。`;
     return `${a} 和 ${b} 的公因數：${commons.join("、")}。最大公因數是 ${g}，${tile}。${share}。`;

@@ -1192,36 +1192,78 @@ label {
   font-weight: 700;
 }
 
-.square-pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 10.5rem));
-  justify-content: center;
-  gap: 0.8rem 1.25rem;
-}
-
-.square-tile {
-  display: grid;
-  justify-items: center;
-  gap: 0.4rem;
-  margin: 0;
-}
-
-.tile-board.is-square {
-  width: min(100%, 9.5rem);
-}
-
-.square-tile figcaption {
-  margin: 0;
-  color: var(--leaf-deep);
-  font-size: 0.88rem;
+.cut-prop {
+  margin: 0 0 0.7rem;
   font-weight: 700;
-  text-align: center;
+  line-height: 1.55;
 }
 
-@media (max-width: 560px) {
-  .square-pair {
-    grid-template-columns: minmax(0, 11rem);
-  }
+.cut-frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 22rem);
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  opacity: 0;
+}
+
+.cut-frame.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.cut-width,
+.cut-length {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--leaf-deep);
+  white-space: nowrap;
+}
+
+.cut-length {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.cut-board {
+  position: relative;
+  width: min(100%, 22rem);
+  aspect-ratio: var(--len) / var(--wid);
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  container-type: size;
+}
+
+.cut-cell {
+  position: absolute;
+  left: calc(var(--x) * 100% / var(--len));
+  top: calc(var(--y) * 100% / var(--wid));
+  width: calc(var(--w) * 100% / var(--len));
+  height: calc(var(--h) * 100% / var(--wid));
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+  background: color-mix(in srgb, var(--step, var(--leaf)) 28%, #fff);
+  color: var(--step, var(--leaf-deep));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(0.75rem, 14cqmin, 1.35rem);
+  opacity: 0;
+}
+
+.cut-cell.is-last-col {
+  border-right: 0;
+}
+
+.cut-cell.is-last-row {
+  border-bottom: 0;
+}
+
+.cut-cell.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
 }
 
 .tile-frame {
@@ -1231,6 +1273,24 @@ label {
   align-items: center;
   gap: 0.35rem 0.5rem;
   margin-top: 0.35rem;
+}
+
+.tile-draw {
+  opacity: 0;
+}
+
+.tile-draw.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.apply-view {
+  opacity: 0;
+}
+
+.apply-view.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
 }
 
 .tile-axis {
@@ -1325,6 +1385,16 @@ label {
   gap: 0.35rem 0.65rem;
   align-items: stretch;
   margin-top: 0.85rem;
+  opacity: 0;
+}
+
+.share.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.apply-view .share {
+  margin-top: 0.15rem;
 }
 
 .share-names {
@@ -1467,12 +1537,17 @@ label {
   .tile-board.is-dense,
   .share-col,
   .share-grid.is-schematic,
+  .apply-view,
+  .tile-draw,
+  .share,
   .period-view,
   .square-view,
   .period-tick,
   .period-meet,
   .period-gap,
-  .period-more {
+  .period-more,
+  .cut-frame,
+  .cut-cell {
     transition: none;
   }
 }
