@@ -3,45 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>因數</title>
+  <title>倍數</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body data-unit="factors">
+<body data-unit="multiples">
   <div class="bg" aria-hidden="true"></div>
   <main class="app">
     <header class="hero">
       <nav class="unit-nav" data-unit-menu aria-label="數學單元"></nav>
-      <p class="brand">因數</p>
-      <h1>先找配對，再用短除法拆成質數</h1>
-      <p class="lede">因數兩兩成對。兩個數都有的，就是公因數。質因數分解和約分用同一種短除法。</p>
+      <p class="brand">倍數</p>
+      <h1>倍數一直寫下去，沒有最大公倍數</h1>
+      <p class="lede">1 倍、2 倍、3 倍是倍數。兩個數都有的叫公倍數，還可以再乘更大。最小的那個用短除法求，和通分同一種算法。</p>
     </header>
 
     <section class="panel" aria-label="操作區">
       <div class="modes" role="tablist" aria-label="模式">
-        <button type="button" class="mode is-active" data-mode="factors" role="tab" aria-selected="true">因數</button>
-        <button type="button" class="mode" data-mode="common" role="tab" aria-selected="false">公因數</button>
-        <button type="button" class="mode" data-mode="pairs" role="tab" aria-selected="false">因數配對</button>
-        <button type="button" class="mode" data-mode="prime" role="tab" aria-selected="false">質因數分解</button>
+        <button type="button" class="mode is-active" data-mode="multiples" role="tab" aria-selected="true">倍數</button>
+        <button type="button" class="mode" data-mode="common" role="tab" aria-selected="false">公倍數</button>
+        <button type="button" class="mode" data-mode="lcm" role="tab" aria-selected="false">最小公倍數</button>
       </div>
 
       <form id="form" class="form" autocomplete="off">
         <div class="inputs" id="inputs-one">
           <label>
             <span>數字</span>
-            <input id="n" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="24" required />
+            <input id="n" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="6" required />
           </label>
         </div>
         <div class="inputs is-hidden" id="inputs-two">
           <label>
             <span>數字 A</span>
-            <input id="fa" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="24" disabled required />
+            <input id="fa" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="4" disabled required />
           </label>
           <label>
             <span>數字 B</span>
-            <input id="fb" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="36" disabled required />
+            <input id="fb" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="6" disabled required />
           </label>
         </div>
 
@@ -64,7 +63,7 @@
             <button type="button" class="level-btn" data-level="mid" role="radio" aria-checked="false">中</button>
             <button type="button" class="level-btn" data-level="high" role="radio" aria-checked="false">高</button>
           </div>
-          <span class="level-range" id="level-range">30 以內，至少兩個質因數</span>
+          <span class="level-range" id="level-range">30 以內</span>
         </div>
 
         <div class="actions">
@@ -76,17 +75,16 @@
     </section>
 
     <section class="stage" aria-live="polite">
-      <p class="stage-label" id="stage-label">找出所有可以整除的數</p>
-      <div id="factor-board" class="factor-board" hidden aria-hidden="true"></div>
+      <p class="stage-label" id="stage-label">1 倍、2 倍、3 倍</p>
+      <div id="multiple-list" class="pair-list" hidden aria-hidden="true"></div>
       <div id="common-board" class="common-board" hidden aria-hidden="true"></div>
-      <div id="pair-list" class="pair-list" hidden aria-hidden="true"></div>
-      <div class="ladder-wrap" id="prime-wrap" hidden>
-        <div id="ladder" class="ladder is-one"></div>
+      <div class="ladder-wrap" id="lcm-wrap" hidden>
+        <div id="ladder" class="ladder"></div>
       </div>
       <p class="result" id="result">輸入數字後按「開始動畫」。</p>
     </section>
   </main>
   <script src="menu.js"></script>
-  <script src="factors.js"></script>
+  <script src="multiples.js"></script>
 </body>
 </html>

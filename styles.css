@@ -235,7 +235,8 @@ body {
   line-height: 1.35;
 }
 
-body[data-unit="factors"] .hero h1 {
+body[data-unit="factors"] .hero h1,
+body[data-unit="multiples"] .hero h1 {
   max-width: 16em;
 }
 
@@ -257,11 +258,19 @@ body[data-unit="factors"] .hero h1 {
 
 .modes {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 1.1rem;
   padding: 0.3rem;
   border-radius: 12px;
   background: rgba(26, 46, 40, 0.06);
+}
+
+body[data-unit="factors"] .mode,
+body[data-unit="multiples"] .mode {
+  flex: 1 1 8.5rem;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
 }
 
 .mode {
@@ -848,7 +857,7 @@ label {
 
 .ladder .factor {
   justify-self: end;
-  color: var(--amber);
+  color: var(--step, var(--amber));
   opacity: 0;
   transform: translateX(-8px);
 }
@@ -872,10 +881,11 @@ label {
 .ladder .pair .n {
   min-width: 1.6em;
   text-align: center;
+  color: var(--step, inherit);
 }
 
 .ladder .pair .final {
-  color: var(--leaf);
+  color: var(--step, var(--leaf));
 }
 
 .ladder .pair .mul-a,
@@ -908,6 +918,16 @@ label {
 .result .eq {
   color: var(--muted);
   font-weight: 500;
+}
+
+.result .prime-eq {
+  display: block;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.result .lcm-expr {
+  flex-wrap: wrap;
 }
 
 .result strong {
@@ -953,22 +973,16 @@ label {
 .factor-chip {
   min-width: 2.75rem;
   padding: 0.42rem 0.75rem;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid color-mix(in srgb, var(--step, var(--line)) 70%, #fff);
   border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
+  background: color-mix(in srgb, var(--step, #fff) 14%, #fff);
+  color: var(--step, var(--ink));
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-size: 1.15rem;
   text-align: center;
   opacity: 0;
   transform: translateY(8px);
-}
-
-.factor-chip.is-square {
-  color: var(--leaf-deep);
-  background: rgba(47, 122, 92, 0.12);
-  border-color: rgba(47, 122, 92, 0.35);
 }
 
 .pair-list {
@@ -981,6 +995,10 @@ label {
   display: flex;
   align-items: baseline;
   gap: 0.55rem;
+  padding: 0.12rem 0.8rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--step, transparent) 12%, transparent);
+  color: var(--step, var(--ink));
   font-size: clamp(1.15rem, 3.5vw, 1.45rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -989,12 +1007,19 @@ label {
 }
 
 .pair-row .pair-op {
-  color: var(--muted);
+  color: var(--step, var(--muted));
   font-weight: 600;
 }
 
-.pair-row.is-square .pair-n {
-  color: var(--leaf-deep);
+.factor-chip.is-gap {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+
+.pair-row.is-gap {
+  background: transparent;
+  color: var(--muted);
 }
 
 .factor-chip.is-in,
@@ -1002,7 +1027,261 @@ label {
 .prime-eq.is-in {
   opacity: 1;
   transform: none;
-  transition: opacity var(--anim-fade, 0.35s) ease, transform var(--anim-fade, 0.35s) ease;
+  transition:
+    opacity var(--anim-fade, 0.35s) ease,
+    transform var(--anim-fade, 0.35s) ease,
+    color var(--anim-fade, 0.35s) ease,
+    background var(--anim-fade, 0.35s) ease,
+    border-color var(--anim-fade, 0.35s) ease;
+}
+
+.common-board {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.common-board[hidden] {
+  display: none;
+}
+
+.common-line {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  gap: 0.55rem 0.75rem;
+  align-items: center;
+}
+
+.common-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--leaf-deep);
+}
+
+.common-line .factor-board {
+  justify-content: flex-start;
+  min-height: 2.6rem;
+}
+
+.tile-frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 26rem);
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.tile-axis {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--leaf-deep);
+}
+
+.tile-axis:last-child {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.tile-board {
+  width: min(100%, 26rem, calc(16rem * var(--cols) / var(--rows)));
+  aspect-ratio: var(--cols) / var(--rows);
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  container-type: size;
+}
+
+.tile-cell {
+  display: grid;
+  place-items: center;
+  border-right: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  background: color-mix(in srgb, var(--step, var(--leaf)) 28%, #fff);
+  color: var(--step, var(--leaf-deep));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(0.85rem, 18cqmin, 1.45rem);
+  opacity: 0;
+}
+
+.tile-cell.is-last-col {
+  border-right: 0;
+}
+
+.tile-cell.is-last-row {
+  border-bottom: 0;
+}
+
+.tile-cell.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.tile-board.is-dense {
+  place-items: center;
+  opacity: 0;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 0 / 1.5px 100% no-repeat,
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(100% / var(--cols) - 1.5px),
+      var(--ink) calc(100% / var(--cols) - 1.5px),
+      var(--ink) calc(100% / var(--cols))
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(100% / var(--rows) - 1.5px),
+      var(--ink) calc(100% / var(--rows) - 1.5px),
+      var(--ink) calc(100% / var(--rows))
+    ),
+    color-mix(in srgb, var(--leaf) 18%, #fff);
+}
+
+.tile-board.is-dense.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.tile-dense-label {
+  position: relative;
+  z-index: 1;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--step, var(--leaf)) 18%, #fff);
+  color: var(--step, var(--leaf-deep));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.share {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  align-items: stretch;
+  margin-top: 0.85rem;
+}
+
+.share-names {
+  display: grid;
+  grid-template-rows: 1.45rem 1.45rem;
+  gap: 0.28rem;
+  align-content: start;
+  align-items: end;
+  padding-top: 0.22rem;
+  color: var(--leaf-deep);
+  font-weight: 700;
+}
+
+.share-names span {
+  display: flex;
+  align-items: flex-end;
+  min-height: 1.45rem;
+  padding-bottom: 0.2rem;
+  white-space: nowrap;
+}
+
+.share-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.15rem;
+}
+
+.share-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  width: max-content;
+  min-width: 100%;
+  padding-block: 0.22rem;
+}
+
+.share-col {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1.45rem 1.45rem;
+  gap: 0.28rem;
+  min-width: 2.4rem;
+  padding: 0 0.42rem;
+  opacity: 0;
+}
+
+.share-col + .share-col::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -0.18rem;
+  bottom: -0.18rem;
+  width: 3px;
+  background: var(--ink);
+}
+
+.share-col.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.share-lane {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.14rem;
+  min-height: 1.45rem;
+  padding-bottom: 0.16rem;
+  border-bottom: 2.5px solid var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bit {
+  width: 0.72rem;
+  height: 0.72rem;
+  flex: none;
+}
+
+.bit.apple {
+  border-radius: 50%;
+  background: #c23b22;
+}
+
+.bit.cookie {
+  border-radius: 0.16rem;
+  background: #f3d08a;
+  box-shadow: inset 0 0 0 1.5px #b7791f;
+}
+
+.share-grid.is-schematic {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 3.4rem;
+  opacity: 0;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 1.35rem / 100% 2.5px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 3.05rem / 100% 2.5px no-repeat,
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(100% / var(--piles) - 2.5px),
+      var(--ink) calc(100% / var(--piles) - 2.5px),
+      var(--ink) calc(100% / var(--piles))
+    );
+}
+
+.share-grid.is-schematic.is-in {
+  opacity: 1;
+  transition: opacity var(--anim-fade, 0.35s) ease;
+}
+
+.share-schematic-label {
+  position: absolute;
+  left: 50%;
+  top: 0.15rem;
+  transform: translateX(-50%);
+  font-weight: 700;
 }
 
 .prime-eq {
@@ -1015,13 +1294,17 @@ label {
 }
 
 .prime-eq .prime-num {
-  color: var(--amber);
+  color: var(--step, var(--amber));
 }
 
 @media (prefers-reduced-motion: reduce) {
   .factor-chip,
   .pair-row,
-  .prime-eq {
+  .prime-eq,
+  .tile-cell,
+  .tile-board.is-dense,
+  .share-col,
+  .share-grid.is-schematic {
     transition: none;
   }
 }

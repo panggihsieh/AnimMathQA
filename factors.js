@@ -3,6 +3,9 @@
 
   const form = $("#form");
   const boardEl = $("#factor-board");
+  const commonBoard = $("#common-board");
+  const inputsOne = $("#inputs-one");
+  const inputsTwo = $("#inputs-two");
   const pairEl = $("#pair-list");
   const ladderEl = $("#ladder");
   const primeWrap = $("#prime-wrap");
@@ -13,15 +16,15 @@
   const levelRange = $("#level-range");
   const speedButtons = document.querySelectorAll(".speed-btn");
 
-  const PROMPT = "輸入數字後按「開始動畫」。";
   const LEVELS = {
-    low: { min: 2, max: 30, label: "30 以內，至少兩個質因數" },
-    mid: { min: 30, max: 50, label: "30–50，至少兩個質因數" },
-    high: { min: 50, max: 100, label: "50–100，含質數" },
+    low: { min: 2, max: 30, label: "30 以內，至少兩個質因數", common: "30 以內，公因數不只 1" },
+    mid: { min: 30, max: 50, label: "30–50，至少兩個質因數", common: "30–50，公因數不只 1" },
+    high: { min: 50, max: 100, label: "50–100，含質數", common: "50–100，只有公因數 1" },
   };
   const SPEED_OPTIONS = [3, 12, 24, 47, 60];
   const LABELS = {
     factors: "找出所有可以整除的數",
+    common: "找出兩個數都有的因數",
     pairs: "相乘得到這個數的配對",
     prime: "短除法求質因數",
   };
@@ -50,6 +53,17 @@
     }
     if (x > 1) count += 1;
     return count;
+  }
+
+  function gcd(a, b) {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x || 1;
   }
 
   function factorPairs(n) {
@@ -94,11 +108,19 @@
     return { primes, steps };
   }
 
-  function readN() {
-    const raw = $("#n").value.trim();
+  function readField(sel) {
+    const raw = $(sel).value.trim();
     const n = Number(raw);
     if (!raw || !Number.isInteger(n) || n < 1 || n > 999) return null;
     return n;
+  }
+
+  function promptText() {
+    return mode === "common" ? "輸入兩個數字後按「開始動畫」。" : "輸入數字後按「開始動畫」。";
+  }
+
+  function syncLevelLabel() {
+    levelRange.textContent = mode === "common" ? LEVELS[level].common : LEVELS[level].label;
   }
 
   function sleep(ms) {
@@ -135,13 +157,15 @@
     pairEl.replaceChildren();
     primeWrap.hidden = true;
     ladderEl.replaceChildren();
+    commonBoard.hidden = true;
+    commonBoard.replaceChildren();
     resultEl.hidden = false;
     resultEl.replaceChildren();
   }
 
   function showPrompt() {
     clearStage();
-    resultEl.textContent = PROMPT;
+    resultEl.textContent = promptText();
   }
 
   function setSpeed(next) {
@@ -169,10 +193,50 @@
     });
   });
 
+  function pickWeighted(items, weight) {
+    const weights = items.map((item) => weight(item));
+    const total = weights.reduce((sum, n) => sum + n, 0);
+    let roll = Math.random() * total;
+    for (let i = 0; i < items.length; i += 1) {
+      roll -= weights[i];
+      if (roll <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+
+  function richPair(min, max) {
+    const found = [];
+    for (let i = 0; i < 48; i += 1) {
+      const a = randInt(min, max);
+      const b = randInt(min, max);
+      if (a === b || omega(a) < 2 || omega(b) < 2) continue;
+      const g = gcd(a, b);
+      if (omega(g) < 2) continue;
+      found.push({ a, b, g });
+    }
+    if (found.length === 0) return null;
+    return pickWeighted(found, (item) => omega(item.g));
+  }
+
+  function coprimePair(min, max) {
+    for (let i = 0; i < 80; i += 1) {
+      const a = randInt(min, max);
+      const b = randInt(min, max);
+      if (a !== b && gcd(a, b) === 1) return { a, b };
+    }
+    return { a: min, b: Math.min(max, min + 1) };
+  }
+
   function fillRandom() {
     const band = LEVELS[level];
-    const n = level === "high" ? randInt(band.min, band.max) : compositeIn(band.min, band.max);
-    $("#n").value = n == null ? 24 : n;
+    if (mode === "common") {
+      const pair = level === "high" ? coprimePair(band.min, band.max) : (richPair(band.min, band.max) || { a: 12, b: 18 });
+      $("#fa").value = pair.a;
+      $("#fb").value = pair.b;
+    } else {
+      const n = level === "high" ? randInt(band.min, band.max) : compositeIn(band.min, band.max);
+      $("#n").value = n == null ? 24 : n;
+    }
     animToken += 1;
     showPrompt();
   }
@@ -185,7 +249,7 @@
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-checked", on ? "true" : "false");
     });
-    levelRange.textContent = LEVELS[next].label;
+    syncLevelLabel();
     fillRandom();
   }
 
@@ -216,7 +280,14 @@
     if (next === "factors") url.searchParams.delete("mode");
     else url.searchParams.set("mode", next);
     history.replaceState(null, "", url);
+    const commonMode = next === "common";
+    inputsOne.classList.toggle("is-hidden", commonMode);
+    inputsTwo.classList.toggle("is-hidden", !commonMode);
+    $("#n").disabled = commonMode;
+    $("#fa").disabled = !commonMode;
+    $("#fb").disabled = !commonMode;
     stageLabel.textContent = LABELS[next];
+    syncLevelLabel();
     animToken += 1;
     showPrompt();
   }
@@ -229,37 +300,67 @@
 
   $("#btn-reset").addEventListener("click", () => {
     $("#n").value = 24;
+    $("#fa").value = 24;
+    $("#fb").value = 36;
     animToken += 1;
     showPrompt();
   });
 
-  function chip(n, square) {
+  const STEP_COLORS = [
+    "#1f6f97",
+    "#b4234d",
+    "#c2410c",
+    "#2f7a5c",
+    "#6d28d9",
+    "#0f766e",
+    "#a16207",
+    "#be185d",
+    "#1d4ed8",
+    "#3f6212",
+    "#9a3412",
+    "#0369a1",
+  ];
+
+  function stepColor(index) {
+    if (index < STEP_COLORS.length) return STEP_COLORS[index];
+    const hue = Math.round((index * 137.508) % 360);
+    return `hsl(${hue} 58% 32%)`;
+  }
+
+  function paintStep(el, index) {
+    el.style.setProperty("--step", stepColor(index));
+  }
+
+  function chip(n) {
     const el = document.createElement("span");
-    el.className = "factor-chip" + (square ? " is-square" : "");
+    el.className = "factor-chip";
     el.textContent = String(n);
     return el;
   }
 
   function renderFactors(n) {
     const pairs = factorPairs(n);
-    const squarePair = pairs.find(([a, b]) => a === b);
-    const square = squarePair ? squarePair[0] : null;
     const values = [...new Set(pairs.flat())].sort((a, b) => a - b);
     const chips = new Map();
     boardEl.replaceChildren();
     values.forEach((value) => {
-      const el = chip(value, value === square);
+      const el = chip(value);
       boardEl.append(el);
       chips.set(value, el);
+    });
+    pairs.forEach(([a, b], index) => {
+      paintStep(chips.get(a), index);
+      if (a !== b) paintStep(chips.get(b), index);
     });
     return pairs.map(([a, b]) => (a === b ? [chips.get(a)] : [chips.get(a), chips.get(b)]));
   }
 
   function renderPairs(n) {
     pairEl.replaceChildren();
-    return factorPairs(n).map(([a, b]) => {
+    return factorPairs(n).map(([a, b], index) => {
       const row = document.createElement("div");
-      row.className = "pair-row" + (a === b ? " is-square" : "");
+      row.className = "pair-row";
+      paintStep(row, index);
       const left = document.createElement("span");
       left.className = "pair-n";
       left.textContent = String(a);
@@ -284,22 +385,34 @@
       const num = document.createElement("span");
       num.className = "prime-num";
       num.textContent = String(p);
+      paintStep(num, index);
       bits.push(num);
     });
     expr.append(...bits);
     return expr;
   }
 
+  function beatOf(item) {
+    if (Array.isArray(item)) return { show: item, paint: [] };
+    if (item && item.show) return { show: item.show, paint: item.paint || [] };
+    return { show: [item], paint: [] };
+  }
+
+  function applyBeat(beat) {
+    beat.paint.forEach(([el, index]) => paintStep(el, index));
+    beat.show.forEach((el) => el.classList.add("is-in"));
+  }
+
   async function reveal(groups, pace, token) {
-    const rows = groups.map((item) => (Array.isArray(item) ? item : [item]));
+    const beats = groups.map(beatOf);
     if (motionOff()) {
-      rows.flat().forEach((el) => el.classList.add("is-in"));
+      beats.forEach(applyBeat);
       return token === animToken;
     }
     await sleep(16);
-    for (const row of rows) {
+    for (const beat of beats) {
       if (token !== animToken) return false;
-      row.forEach((el) => el.classList.add("is-in"));
+      applyBeat(beat);
       await sleep(pace);
     }
     return token === animToken;
@@ -318,7 +431,11 @@
       num.textContent = String(step.pair[0]);
       pair.append(num);
       ladderEl.append(factor, pair);
-      return { factor, pair, hasFactor: step.left != null };
+      return { factor, pair, num, hasFactor: step.left != null };
+    });
+    nodes.forEach((node, index) => {
+      if (index > 0) paintStep(node.num, index - 1);
+      if (node.hasFactor) paintStep(node.factor, index);
     });
 
     const show = (node) => {
@@ -337,14 +454,219 @@
     return token === animToken;
   }
 
+  function factorList(n) {
+    return [...new Set(factorPairs(n).flat())].sort((a, b) => a - b);
+  }
+
   function listText(n) {
-    return [...new Set(factorPairs(n).flat())].sort((a, b) => a - b).join("、");
+    return factorList(n).join("、");
+  }
+
+  function renderCommon(a, b) {
+    const commons = factorList(gcd(a, b));
+    const maps = [a, b].map((n) => {
+      const line = document.createElement("div");
+      line.className = "common-line";
+      const name = document.createElement("span");
+      name.className = "common-name";
+      name.textContent = String(n);
+      const board = document.createElement("div");
+      board.className = "factor-board";
+      const chips = new Map();
+      factorList(n).forEach((value) => {
+        const el = chip(value);
+        board.append(el);
+        chips.set(value, el);
+      });
+      line.append(name, board);
+      commonBoard.append(line);
+      return chips;
+    });
+
+    const answer = document.createElement("div");
+    answer.className = "common-line";
+    const answerName = document.createElement("span");
+    answerName.className = "common-name";
+    answerName.textContent = "公因數";
+    const answerBoard = document.createElement("div");
+    answerBoard.className = "factor-board";
+    answer.append(answerName, answerBoard);
+    commonBoard.append(answer);
+
+    const beats = [];
+    [a, b].forEach((n, row) => {
+      factorPairs(n).forEach(([left, right]) => {
+        const group = [maps[row].get(left)];
+        if (left !== right) group.push(maps[row].get(right));
+        beats.push(group);
+      });
+    });
+    commons.forEach((value, index) => {
+      const mark = chip(value);
+      answerBoard.append(mark);
+      beats.push({
+        show: [mark],
+        paint: [
+          [maps[0].get(value), index],
+          [maps[1].get(value), index],
+          [mark, index],
+        ],
+      });
+    });
+    const greatest = commons[commons.length - 1];
+    const tiling = appendTiles(a, b, greatest, commons.length - 1, beats);
+    const sharing = appendShare(a, b, greatest, beats);
+    return { beats, commons, tiling, sharing };
+  }
+
+  function appendTiles(a, b, g, colorIndex, beats) {
+    const widthN = Math.max(a, b);
+    const heightN = Math.min(a, b);
+    const cols = Math.round(widthN / g);
+    const rows = Math.round(heightN / g);
+    const frame = document.createElement("div");
+    frame.className = "tile-frame";
+    const y = document.createElement("span");
+    y.className = "tile-axis";
+    y.textContent = String(heightN);
+    const x = document.createElement("span");
+    x.className = "tile-axis";
+    x.textContent = String(widthN);
+    const board = document.createElement("div");
+    board.className = "tile-board";
+    board.style.setProperty("--cols", String(cols));
+    board.style.setProperty("--rows", String(rows));
+    board.setAttribute("role", "img");
+    board.setAttribute("aria-label", `長 ${widthN}、寬 ${heightN}，用邊長 ${g} 的正方形鋪成 ${cols} 乘 ${rows}`);
+    frame.append(y, board, x);
+    commonBoard.append(frame);
+
+    const many = cols > 16 || rows > 12 || cols * rows > 96;
+    if (many) {
+      board.classList.add("is-dense");
+      const label = document.createElement("span");
+      label.className = "tile-dense-label";
+      label.textContent = String(g);
+      paintStep(label, colorIndex);
+      board.append(label);
+      beats.push([board]);
+      return { cols, rows };
+    }
+
+    const cells = [];
+    const showNum = cols * rows <= 12;
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        const cell = document.createElement("span");
+        cell.className = "tile-cell";
+        if (c === cols - 1) cell.classList.add("is-last-col");
+        if (r === rows - 1) cell.classList.add("is-last-row");
+        if (showNum) cell.textContent = String(g);
+        paintStep(cell, colorIndex);
+        board.append(cell);
+        cells.push(cell);
+      }
+    }
+    if (cells.length <= 16) cells.forEach((cell) => beats.push([cell]));
+    else {
+      for (let r = 0; r < rows; r += 1) beats.push(cells.slice(r * cols, (r + 1) * cols));
+    }
+    return { cols, rows };
+  }
+
+  function shareLane(kind, count) {
+    const lane = document.createElement("div");
+    lane.className = "share-lane";
+    if (count > 12) {
+      lane.textContent = String(count);
+      return lane;
+    }
+    for (let i = 0; i < count; i += 1) {
+      const bit = document.createElement("span");
+      bit.className = `bit ${kind}`;
+      bit.setAttribute("aria-hidden", "true");
+      lane.append(bit);
+    }
+    return lane;
+  }
+
+  function appendShare(a, b, g, beats) {
+    const apples = Math.round(a / g);
+    const cookies = Math.round(b / g);
+    const share = document.createElement("div");
+    share.className = "share";
+    share.setAttribute("role", "img");
+    share.setAttribute("aria-label", `分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾`);
+    const names = document.createElement("div");
+    names.className = "share-names";
+    ["蘋果", "餅乾"].forEach((text) => {
+      const name = document.createElement("span");
+      name.textContent = text;
+      names.append(name);
+    });
+    const scroll = document.createElement("div");
+    scroll.className = "share-scroll";
+    const grid = document.createElement("div");
+    grid.className = "share-grid";
+    share.append(names, scroll);
+    scroll.append(grid);
+    commonBoard.append(share);
+
+    if (g > 20) {
+      grid.classList.add("is-schematic");
+      grid.style.setProperty("--piles", String(g));
+      const label = document.createElement("span");
+      label.className = "share-schematic-label";
+      label.textContent = `${g} 堆`;
+      grid.append(label);
+      beats.push([grid]);
+      return { piles: g, apples, cookies };
+    }
+
+    const cols = [];
+    for (let i = 0; i < g; i += 1) {
+      const col = document.createElement("div");
+      col.className = "share-col";
+      col.append(shareLane("apple", apples), shareLane("cookie", cookies));
+      grid.append(col);
+      cols.push(col);
+    }
+    if (cols.length <= 12) cols.forEach((col) => beats.push([col]));
+    else beats.push(cols);
+    return { piles: g, apples, cookies };
+  }
+
+  function commonSentence(a, b, commons) {
+    const g = commons[commons.length - 1];
+    const cols = Math.round(Math.max(a, b) / g);
+    const rows = Math.round(Math.min(a, b) / g);
+    const apples = Math.round(a / g);
+    const cookies = Math.round(b / g);
+    const tile = `邊長 ${g} 的正方形用 ${cols}×${rows} 塊鋪滿`;
+    const share = `分成 ${g} 堆，每堆 ${apples} 顆蘋果、${cookies} 片餅乾，沒有剩下`;
+    if (commons.length === 1) return `${a} 和 ${b} 的公因數只有 1。${tile}。${share}。`;
+    return `${a} 和 ${b} 的公因數：${commons.join("、")}。最大公因數是 ${g}，${tile}。${share}。`;
   }
 
   async function play() {
-    const n = readN();
     const token = ++animToken;
     clearStage();
+    if (mode === "common") {
+      const a = readField("#fa");
+      const b = readField("#fb");
+      if (a == null || b == null) {
+        resultEl.textContent = "請輸入 1 到 999 的整數。";
+        return;
+      }
+      commonBoard.hidden = false;
+      const { beats, commons } = renderCommon(a, b);
+      const ok = await reveal(beats, paceFor(beats.length), token);
+      if (!ok) return;
+      resultEl.textContent = commonSentence(a, b, commons);
+      return;
+    }
+
+    const n = readField("#n");
     if (n == null) {
       resultEl.textContent = "請輸入 1 到 999 的整數。";
       return;
@@ -393,10 +715,10 @@
     expr.classList.add("is-in");
   }
 
-  $("#n").addEventListener("invalid", () => {
+  form.addEventListener("invalid", () => {
     animToken += 1;
     showPrompt();
-  });
+  }, true);
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -404,5 +726,5 @@
   });
 
   const initial = new URLSearchParams(location.search).get("mode");
-  setMode(initial === "pairs" || initial === "prime" ? initial : "factors");
+  setMode(initial === "pairs" || initial === "prime" || initial === "common" ? initial : "factors");
 })();

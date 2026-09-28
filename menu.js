@@ -11,7 +11,7 @@
       label: "數",
       items: [
         { id: "factors", label: "因數", href: "factors.html" },
-        { id: "multiples", label: "倍數" },
+        { id: "multiples", label: "倍數", href: "multiples.html" },
         { id: "expand", label: "擴分", href: "index.html?mode=picture" },
         { id: "fractions", label: "約分通分", href: "index.html" },
       ],
