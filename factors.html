@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>因數</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-unit="factors">
+  <div class="bg" aria-hidden="true"></div>
+  <main class="app">
+    <header class="hero">
+      <nav class="unit-nav" data-unit-menu aria-label="數學單元"></nav>
+      <p class="brand">因數</p>
+      <h1>先找配對，再用短除法拆成質數</h1>
+      <p class="lede">因數兩兩成對。質因數分解和約分用同一種短除法。</p>
+    </header>
+
+    <section class="panel" aria-label="操作區">
+      <div class="modes" role="tablist" aria-label="模式">
+        <button type="button" class="mode is-active" data-mode="factors" role="tab" aria-selected="true">因數</button>
+        <button type="button" class="mode" data-mode="pairs" role="tab" aria-selected="false">因數配對</button>
+        <button type="button" class="mode" data-mode="prime" role="tab" aria-selected="false">質因數分解</button>
+      </div>
+
+      <form id="form" class="form" autocomplete="off">
+        <div class="inputs">
+          <label>
+            <span>數字</span>
+            <input id="n" class="num-input" type="number" inputmode="numeric" min="1" max="999" value="24" required />
+          </label>
+        </div>
+
+        <div class="speed">
+          <span class="speed-label" id="speed-label">動畫時間</span>
+          <div class="speed-picks" role="radiogroup" aria-labelledby="speed-label">
+            <button type="button" class="speed-btn is-active" data-seconds="3" role="radio" aria-checked="true">3</button>
+            <button type="button" class="speed-btn" data-seconds="12" role="radio" aria-checked="false">12</button>
+            <button type="button" class="speed-btn" data-seconds="24" role="radio" aria-checked="false">24</button>
+            <button type="button" class="speed-btn" data-seconds="47" role="radio" aria-checked="false">47</button>
+            <button type="button" class="speed-btn" data-seconds="60" role="radio" aria-checked="false">60</button>
+          </div>
+          <span class="speed-unit">秒</span>
+        </div>
+
+        <div class="level">
+          <span class="level-label" id="level-label">練習等級</span>
+          <div class="level-picks" role="radiogroup" aria-labelledby="level-label">
+            <button type="button" class="level-btn is-active" data-level="low" role="radio" aria-checked="true">低</button>
+            <button type="button" class="level-btn" data-level="mid" role="radio" aria-checked="false">中</button>
+            <button type="button" class="level-btn" data-level="high" role="radio" aria-checked="false">高</button>
+          </div>
+          <span class="level-range" id="level-range">30 以內，至少兩個質因數</span>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary">開始動畫</button>
+          <button type="button" class="ghost" id="btn-random">隨機示範</button>
+          <button type="button" class="ghost" id="btn-reset">重設</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="stage" aria-live="polite">
+      <p class="stage-label" id="stage-label">找出所有可以整除的數</p>
+      <div id="factor-board" class="factor-board" hidden aria-hidden="true"></div>
+      <div id="pair-list" class="pair-list" hidden aria-hidden="true"></div>
+      <div class="ladder-wrap" id="prime-wrap" hidden>
+        <div id="ladder" class="ladder is-one"></div>
+      </div>
+      <p class="result" id="result">輸入數字後按「開始動畫」。</p>
+    </section>
+  </main>
+  <script src="menu.js"></script>
+  <script src="factors.js"></script>
+</body>
+</html>

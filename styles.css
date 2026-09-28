@@ -235,6 +235,10 @@ body {
   line-height: 1.35;
 }
 
+body[data-unit="factors"] .hero h1 {
+  max-width: 16em;
+}
+
 .lede {
   margin: 0.65rem 0 0;
   color: var(--muted);
@@ -281,6 +285,11 @@ body {
   background: #fff;
   color: var(--leaf-deep);
   box-shadow: 0 1px 4px rgba(20, 50, 40, 0.1);
+}
+
+.mode:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
 }
 
 .form {
@@ -903,6 +912,118 @@ label {
 
 .result strong {
   color: var(--leaf-deep);
+}
+
+.num-input {
+  width: 5.5rem;
+  padding: 0.45rem 0.4rem;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.num-input:focus {
+  outline: 2px solid rgba(47, 122, 92, 0.45);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+}
+
+.factor-board,
+.pair-list {
+  min-height: 3.2rem;
+}
+
+.factor-board[hidden],
+.pair-list[hidden] {
+  display: none;
+}
+
+.factor-board {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.factor-chip {
+  min-width: 2.75rem;
+  padding: 0.42rem 0.75rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.factor-chip.is-square {
+  color: var(--leaf-deep);
+  background: rgba(47, 122, 92, 0.12);
+  border-color: rgba(47, 122, 92, 0.35);
+}
+
+.pair-list {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+.pair-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.pair-row .pair-op {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pair-row.is-square .pair-n {
+  color: var(--leaf-deep);
+}
+
+.factor-chip.is-in,
+.pair-row.is-in,
+.prime-eq.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--anim-fade, 0.35s) ease, transform var(--anim-fade, 0.35s) ease;
+}
+
+.prime-eq {
+  display: inline-block;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.prime-eq .prime-num {
+  color: var(--amber);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .factor-chip,
+  .pair-row,
+  .prime-eq {
+    transition: none;
+  }
 }
 
 @keyframes rise {
