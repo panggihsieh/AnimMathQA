@@ -355,6 +355,30 @@ body {
   font-weight: 600;
 }
 
+.lcm-expr {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lcm-expr .div {
+  color: var(--amber);
+}
+
+.lcm-expr .mul-a {
+  color: var(--mul-a);
+}
+
+.lcm-expr .mul-b {
+  color: var(--mul-b);
+}
+
+.lcm-expr .lcm-value {
+  color: var(--leaf);
+}
+
 .shown-frac {
   display: inline-grid;
   justify-items: center;
@@ -446,6 +470,59 @@ label {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
+}
+
+.level {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.level-label,
+.level-range {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.level-range {
+  font-variant-numeric: tabular-nums;
+}
+
+.level-picks {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.22rem;
+  border-radius: 10px;
+  background: rgba(26, 46, 40, 0.06);
+}
+
+.level-btn {
+  min-width: 2.6rem;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.level-btn:hover {
+  color: var(--ink);
+}
+
+.level-btn:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+.level-btn.is-active {
+  background: #fff;
+  color: var(--leaf-deep);
+  box-shadow: 0 1px 4px rgba(20, 50, 40, 0.1);
 }
 
 .actions {

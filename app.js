@@ -33,21 +33,163 @@
     return min + Math.floor(Math.random() * (max - min + 1));
   }
 
-  function randomReduce() {
-    for (let i = 0; i < 80; i += 1) {
-      const num = randInt(2, 100);
-      const den = randInt(2, 100);
-      if (gcd(num, den) > 1) return { num, den };
+  const LEVELS = {
+    low: { min: 1, max: 30, label: "30 以內，至少兩個質因數" },
+    mid: { min: 30, max: 50, label: "30–50，至少兩個質因數" },
+    high: { min: 50, max: 100, label: "50–100，分子分母互質" },
+  };
+
+  let level = "low";
+  const levelButtons = document.querySelectorAll(".level-btn");
+  const levelRange = $("#level-range");
+
+  function levelBounds() {
+    const band = LEVELS[level];
+    return {
+      numMin: band.min,
+      numMax: band.max,
+      denMin: Math.max(2, band.min),
+      denMax: band.max,
+    };
+  }
+
+  /** 質因數個數，含重複。1 是 0 個，質數是 1 個。 */
+  function omega(n) {
+    let count = 0;
+    let x = Math.abs(n);
+    if (x < 2) return 0;
+    let p = 2;
+    while (p * p <= x) {
+      while (x % p === 0) {
+        count += 1;
+        x = Math.floor(x / p);
+      }
+      p += p === 2 ? 1 : 2;
     }
-    return { num: 24, den: 42 };
+    if (x > 1) count += 1;
+    return count;
+  }
+
+  function pickWeighted(items, weight) {
+    const weights = items.map((item) => weight(item));
+    const total = weights.reduce((sum, n) => sum + n, 0);
+    let roll = Math.random() * total;
+    for (let i = 0; i < items.length; i += 1) {
+      roll -= weights[i];
+      if (roll <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+
+  /** 低、中：兩個數都至少兩個質因數，且公因數也至少兩個；公因數越多越容易被抽到。 */
+  function richPair(min, max) {
+    const found = [];
+    for (let i = 0; i < 48; i += 1) {
+      const a = randInt(min, max);
+      const b = randInt(min, max);
+      if (a === b || omega(a) < 2 || omega(b) < 2) continue;
+      const g = gcd(a, b);
+      if (omega(g) < 2) continue;
+      found.push({ a, b, g });
+    }
+    if (found.length === 0) return null;
+    return pickWeighted(found, (item) => omega(item.g));
+  }
+
+  function compositeIn(min, max) {
+    for (let i = 0; i < 40; i += 1) {
+      const n = randInt(min, max);
+      if (omega(n) >= 2) return n;
+    }
+    return null;
+  }
+
+  /** 高等級：分子與分母互質。 */
+  function coprimeFraction(numMin, numMax, denMin, denMax) {
+    for (let i = 0; i < 80; i += 1) {
+      const n = randInt(numMin, numMax);
+      const d = randInt(denMin, denMax);
+      if (gcd(n, d) === 1) return { n, d };
+    }
+    return null;
+  }
+
+  function randomReduce() {
+    const { denMin, denMax } = levelBounds();
+    if (level === "high") {
+      const pair = coprimeFraction(denMin, denMax, denMin, denMax);
+      return pair ? { num: pair.n, den: pair.d } : { num: 50, den: 51 };
+    }
+    const pair = richPair(denMin, denMax);
+    if (pair) return { num: pair.a, den: pair.b };
+    return level === "mid" ? { num: 32, den: 48 } : { num: 12, den: 24 };
   }
 
   function randomCommon() {
-    const ad = randInt(2, 100);
-    let bd = randInt(2, 100);
-    if (bd === ad) bd = ad === 100 ? 99 : ad + 1;
-    return { an: randInt(1, 100), ad, bn: randInt(1, 100), bd };
+    const { numMin, numMax, denMin, denMax } = levelBounds();
+    if (level === "high") {
+      for (let i = 0; i < 20; i += 1) {
+        const a = coprimeFraction(numMin, numMax, denMin, denMax);
+        const b = coprimeFraction(numMin, numMax, denMin, denMax);
+        if (a && b && a.d !== b.d) return { an: a.n, ad: a.d, bn: b.n, bd: b.d };
+      }
+      return { an: 50, ad: 51, bn: 52, bd: 53 };
+    }
+    const dens = richPair(denMin, denMax);
+    const an = compositeIn(numMin, numMax);
+    const bn = compositeIn(numMin, numMax);
+    if (dens && an != null && bn != null) {
+      return { an, ad: dens.a, bn, bd: dens.b };
+    }
+    if (level === "mid") return { an: 30, ad: 36, bn: 42, bd: 48 };
+    return { an: 8, ad: 12, bn: 18, bd: 24 };
   }
+
+  function fillRandom() {
+    if (mode === "reduce") {
+      const pair = randomReduce();
+      $("#num").value = pair.num;
+      $("#den").value = pair.den;
+    } else {
+      const pair = randomCommon();
+      $("#a-num").value = pair.an;
+      $("#a-den").value = pair.ad;
+      $("#b-num").value = pair.bn;
+      $("#b-den").value = pair.bd;
+    }
+    animToken += 1;
+    ladderEl.innerHTML = "";
+    clearWorks();
+    resultEl.hidden = false;
+    resultEl.textContent = "輸入分數後按「開始動畫」。";
+  }
+
+  function setLevel(next) {
+    if (!LEVELS[next] || next === level) return;
+    level = next;
+    levelButtons.forEach((btn) => {
+      const on = btn.dataset.level === next;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    levelRange.textContent = LEVELS[next].label;
+    fillRandom();
+  }
+
+  levelButtons.forEach((btn) => {
+    btn.addEventListener("click", () => setLevel(btn.dataset.level));
+    btn.addEventListener("keydown", (event) => {
+      const order = ["low", "mid", "high"];
+      const index = order.indexOf(btn.dataset.level);
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const next = order[(index + step + order.length) % order.length];
+      const target = document.querySelector(`.level-btn[data-level="${next}"]`);
+      target.focus();
+      setLevel(next);
+    });
+  });
 
   /** 短除法：除數與被除數列對齊，最底列為商 */
   function shortDivisionSteps(a, b) {
@@ -117,24 +259,7 @@
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
   });
 
-  $("#btn-random").addEventListener("click", () => {
-    if (mode === "reduce") {
-      const pair = randomReduce();
-      $("#num").value = pair.num;
-      $("#den").value = pair.den;
-    } else {
-      const pair = randomCommon();
-      $("#a-num").value = pair.an;
-      $("#a-den").value = pair.ad;
-      $("#b-num").value = pair.bn;
-      $("#b-den").value = pair.bd;
-    }
-    animToken += 1;
-    ladderEl.innerHTML = "";
-    clearWorks();
-    resultEl.hidden = false;
-    resultEl.textContent = "輸入分數後按「開始動畫」。";
-  });
+  $("#btn-random").addEventListener("click", fillRandom);
 
   $("#btn-reset").addEventListener("click", () => {
     animToken += 1;
@@ -266,8 +391,48 @@
     }
   }
 
-  /** 短除法結束後，在兩個分數右側逐步寫出同乘與通分結果 */
-  async function playCommonWork(an, ad, bn, bd, mA, mB, common, token, pace) {
+  /** 短除法的除數與最底列，依顏色乘成最小公倍數 */
+  function lcmExpression(steps, common) {
+    const factors = [];
+    steps.slice(0, -1).forEach((step) => {
+      factors.push({ n: step.left, tone: "div" });
+    });
+    const last = steps[steps.length - 1].pair;
+    factors.push({ n: last[0], tone: "mul-b" }, { n: last[1], tone: "mul-a" });
+    const shown = factors.filter((factor) => factor.n > 1);
+
+    const expr = document.createElement("span");
+    expr.className = "lcm-expr op";
+    const name = document.createElement("span");
+    name.textContent = "LCM";
+    expr.append(name, Object.assign(document.createElement("span"), { textContent: "=" }));
+
+    shown.forEach((factor, index) => {
+      if (index > 0) {
+        expr.append(Object.assign(document.createElement("span"), { textContent: "×" }));
+      }
+      const num = document.createElement("span");
+      num.className = factor.tone;
+      num.textContent = String(factor.n);
+      expr.append(num);
+    });
+    if (shown.length === 0) {
+      const only = document.createElement("span");
+      only.className = "lcm-value";
+      only.textContent = String(common);
+      expr.append(only);
+      return expr;
+    }
+
+    const value = document.createElement("span");
+    value.className = "lcm-value";
+    value.textContent = String(common);
+    expr.append(Object.assign(document.createElement("span"), { textContent: "=" }), value);
+    return expr;
+  }
+
+  /** 先寫出最小公倍數當公分母，再寫每個分數要同乘的數 */
+  async function playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace) {
     if (token !== animToken) return;
     const specs = [
       { n: an, d: ad, m: mA, tone: "mul-a" },
@@ -290,8 +455,19 @@
       return { row, groups };
     });
 
+    const lcmRow = document.createElement("div");
+    lcmRow.className = "reduce-work";
+    const lcmExpr = lcmExpression(steps, common);
+    lcmRow.append(lcmExpr);
+
     commonWork.hidden = false;
-    commonWork.replaceChildren(...lines.map((line) => line.row));
+    commonWork.replaceChildren(lcmRow, ...lines.map((line) => line.row));
+
+    if (token !== animToken) return;
+    await sleep(16);
+    if (token !== animToken) return;
+    lcmExpr.classList.add("is-in");
+    await sleep(Math.max(0, pace - 16));
 
     const stepCount = Math.max(...lines.map((line) => line.groups.length));
     for (let i = 0; i < stepCount; i += 1) {
@@ -360,11 +536,11 @@
     resultEl.hidden = true;
     resultEl.textContent = "";
     clearWorks();
-    const resultBeats = mA > 1 || mB > 1 ? 3 : 1;
+    const resultBeats = (mA > 1 || mB > 1 ? 3 : 1) + 1;
     const pace = paceFor(steps.length + resultBeats);
     const token = await playLadder(steps, { markFinal: false, lastClasses: ["mul-b", "mul-a"], pace });
     if (token == null) return;
-    await playCommonWork(an, ad, bn, bd, mA, mB, common, token, pace);
+    await playCommonWork(an, ad, bn, bd, mA, mB, common, steps, token, pace);
   });
 
   setMode("reduce");

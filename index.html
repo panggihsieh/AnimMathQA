@@ -68,6 +68,16 @@
           <span class="speed-scale" aria-hidden="true"><span>1</span><span>60</span></span>
         </label>
 
+        <div class="level">
+          <span class="level-label" id="level-label">練習等級</span>
+          <div class="level-picks" role="radiogroup" aria-labelledby="level-label">
+            <button type="button" class="level-btn is-active" data-level="low" role="radio" aria-checked="true">低</button>
+            <button type="button" class="level-btn" data-level="mid" role="radio" aria-checked="false">中</button>
+            <button type="button" class="level-btn" data-level="high" role="radio" aria-checked="false">高</button>
+          </div>
+          <span class="level-range" id="level-range">30 以內，至少兩個質因數</span>
+        </div>
+
         <div class="actions">
           <button type="submit" class="primary">開始動畫</button>
           <button type="button" class="ghost" id="btn-random">隨機示範</button>
